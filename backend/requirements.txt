@@ -1,0 +1,21 @@
+# Core
+fastapi
+uvicorn
+python-dotenv
+pydantic
+
+# Data Processing
+numpy
+pandas
+scipy
+
+# Machine Learning
+scikit-learn
+statsmodels
+
+# HTTP
+requests
+httpx
+
+# CORS
+python-multipart
