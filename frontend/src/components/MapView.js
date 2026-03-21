@@ -11,7 +11,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 });
 
-export default function MapView({ gridData, hotspots, activeLayer, city, selectedPoint, onMapClick }) {
+export default function MapView({ gridData, hotspots, activeLayer, city, selectedPoint, clickedSpotData, onMapClick }) {
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
   const heatLayerRef = useRef(null);
@@ -78,16 +78,32 @@ export default function MapView({ gridData, hotspots, activeLayer, city, selecte
         opacity: 1,
       });
 
-      selectedMarkerRef.current.bindPopup(`
-        <div style="text-align:center">
-          <div style="font-size:12px;font-weight:700;color:#f59e0b">Selected Spot</div>
-          <div style="font-size:10px;color:#94a3b8;margin-top:2px">Prediction Target</div>
-        </div>
-      `);
+      let popupContent = `
+        <div style="text-align:center; min-width: 140px;">
+          <div style="font-size:13px;font-weight:700;color:#f59e0b">Selected Spot</div>
+          <div style="font-size:10px;color:#94a3b8;margin-bottom:8px">${selectedPoint[0].toFixed(4)}, ${selectedPoint[1].toFixed(4)}</div>
+      `;
+
+      if (clickedSpotData) {
+        popupContent += `
+          <div style="text-align: left; background: rgba(0,0,0,0.2); padding: 6px; border-radius: 6px;">
+            <div style="font-size:11px; margin-bottom: 2px;">🌡️ Temp: <span style="font-weight:600; color:#ef4444">${clickedSpotData.temperature}°C</span></div>
+            <div style="font-size:11px; margin-bottom: 2px;">💨 AQI: <span style="font-weight:600; color:#eab308">Class ${clickedSpotData.pollution_aqi}</span></div>
+            <div style="font-size:11px; margin-bottom: 2px;">💧 Soil: <span style="font-weight:600; color:#3b82f6">${typeof clickedSpotData.soil_moisture === 'number' ? clickedSpotData.soil_moisture.toFixed(1) + '%' : clickedSpotData.soil_moisture}</span></div>
+            <div style="font-size:11px;">🌱 Veg: <span style="font-weight:600; color:#10b981">${clickedSpotData.vegetation_risk} Risk</span></div>
+          </div>
+        `;
+      } else {
+        popupContent += `<div style="font-size:11px;color:#94a3b8">Fetching parameters...</div>`;
+      }
+
+      popupContent += `</div>`;
+
+      selectedMarkerRef.current.bindPopup(popupContent);
       selectedMarkerRef.current.addTo(mapInstance.current);
       selectedMarkerRef.current.openPopup();
     }
-  }, [selectedPoint]);
+  }, [selectedPoint, clickedSpotData]);
 
   // Render grid data as colored circles
   const renderGrid = useCallback(() => {

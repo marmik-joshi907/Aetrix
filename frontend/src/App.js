@@ -6,7 +6,10 @@ import Dashboard from './components/Dashboard';
 import ActionPlan from './components/ActionPlan';
 import CitySelector from './components/CitySelector';
 import Prediction from './components/Prediction';
-import { getGridData, getHotspots, predictTrend, getActionPlan, loadCity, getWeekCount } from './services/api';
+import { 
+  getGridData, getHotspots, predictTrend, getActionPlan, loadCity, getWeekCount,
+  predictTemperature, predictSoil, predictPollution, predictLanduse
+} from './services/api';
 import { CITIES, LAYERS } from './utils/constants';
 
 export default function App() {
@@ -22,6 +25,7 @@ export default function App() {
   const [gridData, setGridData] = useState(null);
   const [hotspots, setHotspots] = useState(null);
   const [trendData, setTrendData] = useState(null);
+  const [mlPrediction, setMlPrediction] = useState(null);
   const [actionPlan, setActionPlan] = useState(null);
   
   // UI
@@ -55,7 +59,7 @@ export default function App() {
     }
   }, [activeLayer, currentWeek, currentCity]);
 
-  // Fetch trend
+  // Fetch generic trend (kept for Dashboard)
   const fetchTrend = useCallback(async () => {
     try {
       const res = await predictTrend(cityObj.lat, cityObj.lon, activeLayer, 4, currentCity);
@@ -64,6 +68,30 @@ export default function App() {
       console.error('Trend error:', err);
     }
   }, [activeLayer, currentCity, cityObj]);
+
+  // Fetch Specific ML Prediction
+  const fetchMLPrediction = async (lat, lon, layer) => {
+    setMlPrediction(null); // loading state
+    try {
+      let res;
+      if (layer === 'temperature') {
+        res = await predictTemperature(5); // 5 years ahead
+      } else if (layer === 'soil_moisture') {
+        // We use dummy/approx values for the point, normally extracted from grid
+        res = await predictSoil(currentCity, 0.8, 6.0, 12.0, 180, 26, 6);
+      } else if (layer === 'pollution') {
+        res = await predictPollution(currentCity, lat, lon, { PM25: 65, NO2: 30 }); // dummy current pollutants
+      } else if (layer === 'ndvi') {
+        // Land use proxy
+        res = await predictLanduse(lat, lon, 65, 30);
+      }
+      if (res && res.data) {
+        setMlPrediction(res.data);
+      }
+    } catch (err) {
+      console.error('ML Prediction error:', err);
+    }
+  };
 
   // Fetch action plan
   const fetchActionPlan = useCallback(async () => {
@@ -94,6 +122,7 @@ export default function App() {
         await fetchWeekCount();
         await fetchGridData();
         await Promise.all([fetchHotspots(), fetchTrend(), fetchActionPlan()]);
+        await fetchMLPrediction(cityObj.lat, cityObj.lon, activeLayer);
       } catch (err) {
         setError('Failed to connect to backend. Make sure the server is running on port 8000.');
       }
@@ -114,6 +143,9 @@ export default function App() {
   useEffect(() => {
     if (!loading) {
       fetchTrend();
+      const lat = selectedPoint ? selectedPoint[0] : cityObj.lat;
+      const lon = selectedPoint ? selectedPoint[1] : cityObj.lon;
+      fetchMLPrediction(lat, lon, activeLayer);
     }
   }, [activeLayer]);
 
@@ -128,13 +160,35 @@ export default function App() {
     }
   };
 
+  const [clickedSpotData, setClickedSpotData] = useState(null);
+
   // Map click
   const handleMapClick = async (lat, lon) => {
     setSelectedPoint([lat, lon]);
     setActiveTab('prediction');
+    setClickedSpotData(null); // Reset for loading
     try {
+      // Fetch generic trend for the chart (if needed)
       const res = await predictTrend(lat, lon, activeLayer, 4, currentCity);
       setTrendData(res.data);
+      // Fetch specific ML prediction for UI
+      await fetchMLPrediction(lat, lon, activeLayer);
+
+      // Fetch snapshot data for the Popup (using predict endpoints as a fast proxy for current params)
+      const [tRes, sRes, pRes, lRes] = await Promise.all([
+        predictTemperature(1).catch(() => null),
+        predictSoil(currentCity, 0.8, 6.0, 12.0, 180, 26, 6).catch(() => null),
+        predictPollution(currentCity, lat, lon, { PM25: 65, NO2: 30 }).catch(() => null),
+        predictLanduse(lat, lon, 65, 30).catch(() => null)
+      ]);
+
+      setClickedSpotData({
+        temperature: tRes?.data?.predictions?.[0]?.predicted_annual || 'N/A',
+        soil_moisture: sRes?.data?.result?.forecast_7d_sm_pct?.[0] || 'N/A',
+        pollution_aqi: pRes?.data?.result?.aqi_category || 'N/A',
+        vegetation_risk: lRes?.data?.result?.change_risk_label || 'N/A',
+      });
+
     } catch (err) {
       console.error('Map click trend error:', err);
     }
@@ -235,6 +289,7 @@ export default function App() {
             <Dashboard
               gridData={gridData}
               trendData={trendData}
+              mlPrediction={mlPrediction}
               activeLayer={activeLayer}
             />
           )}
@@ -246,6 +301,7 @@ export default function App() {
           {activeTab === 'prediction' && (
             <Prediction
               trendData={trendData}
+              mlPrediction={mlPrediction}
               activeLayer={activeLayer}
               selectedPoint={selectedPoint}
             />
@@ -261,6 +317,7 @@ export default function App() {
           activeLayer={activeLayer}
           city={cityObj}
           selectedPoint={selectedPoint}
+          clickedSpotData={clickedSpotData}
           onMapClick={handleMapClick}
         />
 

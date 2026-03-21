@@ -12,10 +12,16 @@ scipy
 # Machine Learning
 scikit-learn
 statsmodels
+xgboost
+joblib
 
 # HTTP
 requests
 httpx
+
+# Geo
+geopandas
+shapely
 
 # CORS
 python-multipart

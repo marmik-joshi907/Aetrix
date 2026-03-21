@@ -26,6 +26,37 @@ export const getAnomalies = (parameter = null, week = -1, city = null) =>
 export const predictTrend = (lat, lon, parameter, forecastWeeks = 4, city = null) =>
   api.get('/api/predict-trend', { params: { lat, lon, parameter, forecast_weeks: forecastWeeks, city } });
 
+// New specific ML prediction endpoints
+export const predictTemperature = (yearsAhead = 5) =>
+  api.post('/api/predict/temperature', { years_ahead: yearsAhead });
+
+export const predictSoil = (district, smLevel, smAggPct, smVolPct, dayOfYear, week, month) =>
+  api.post('/api/predict/soil', {
+    district,
+    sm_level: smLevel,
+    sm_agg_pct: smAggPct,
+    sm_vol_pct: smVolPct,
+    day_of_year: dayOfYear,
+    week,
+    month
+  });
+
+export const predictPollution = (state, lat, lon, pollutants) =>
+  api.post('/api/predict/pollution', {
+    state,
+    latitude: lat,
+    longitude: lon,
+    ...pollutants
+  });
+
+export const predictLanduse = (lat, lon, pm25, no2) =>
+  api.post('/api/predict/landuse', {
+    latitude: lat,
+    longitude: lon,
+    pm25,
+    no2
+  });
+
 // Action endpoints
 export const getActionPlan = (city = null, week = -1) =>
   api.get('/api/action-plan', { params: { city, week } });

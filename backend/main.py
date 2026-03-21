@@ -17,7 +17,7 @@ from contextlib import asynccontextmanager
 
 import config
 from pipeline.processor import DataPipeline
-from api import data_routes, ml_routes, action_routes
+from api import data_routes, ml_routes, action_routes, predict_routes
 
 # Configure logging
 logging.basicConfig(
@@ -88,6 +88,7 @@ app.add_middleware(
 app.include_router(data_routes.router)
 app.include_router(ml_routes.router)
 app.include_router(action_routes.router)
+app.include_router(predict_routes.router)
 
 
 @app.get("/")
