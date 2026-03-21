@@ -43,6 +43,10 @@ async def lifespan(app: FastAPI):
     logger.info(f"Grid: {config.GRID_SIZE}x{config.GRID_SIZE} @ {config.GRID_RESOLUTION_KM}km")
     logger.info(f"Using sample data: {config.use_sample_data()}")
     
+    import database
+    logger.info("Testing PostgreSQL database connection...")
+    database.test_connection()
+
     # Run pipeline for demo city
     logger.info("Initializing data pipeline...")
     pipeline.run_pipeline(config.DEMO_CITY_NAME)

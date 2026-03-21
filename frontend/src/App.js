@@ -261,6 +261,7 @@ export default function App() {
           activeLayer={activeLayer}
           city={cityObj}
           selectedPoint={selectedPoint}
+          trendData={trendData}
           onMapClick={handleMapClick}
         />
 

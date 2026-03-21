@@ -11,7 +11,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 });
 
-export default function MapView({ gridData, hotspots, activeLayer, city, selectedPoint, onMapClick }) {
+export default function MapView({ gridData, hotspots, activeLayer, city, selectedPoint, trendData, onMapClick }) {
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
   const heatLayerRef = useRef(null);
@@ -78,16 +78,35 @@ export default function MapView({ gridData, hotspots, activeLayer, city, selecte
         opacity: 1,
       });
 
+      let statsHtml = `<div style="font-size:10px;color:#94a3b8;margin-top:2px">Loading prediction...</div>`;
+      
+      if (trendData && trendData.trend) {
+        const direction = trendData.trend.direction || 'stable';
+        const change = Math.abs(trendData.trend.change_percent || 0).toFixed(1);
+        const dirColor = direction === 'increasing' ? '#ef4444' : direction === 'decreasing' ? '#10b981' : '#f59e0b';
+        
+        statsHtml = `
+          <div style="font-size:11px;color:#cbd5e1;margin-top:6px;padding-top:6px;border-top:1px solid #334155;text-align:left">
+            <div style="margin-bottom:4px;font-size:10px;color:#94a3b8">PARAMETER: <span style="color:#e2e8f0;text-transform:uppercase">${trendData.parameter || 'unknown'}</span></div>
+            <div>Trend: <span style="font-weight:600;color:${dirColor}">${direction.toUpperCase()}</span></div>
+            <div>Change: <span style="font-weight:600;color:${dirColor}">${change}%</span></div>
+            <div style="font-size:9px;color:#64748b;margin-top:4px">Model: ${trendData.model || 'ARIMA'}</div>
+          </div>
+        `;
+      } else if (trendData === null) {
+          statsHtml = `<div style="font-size:10px;color:#94a3b8;margin-top:2px">Prediction Target</div>`;
+      }
+
       selectedMarkerRef.current.bindPopup(`
-        <div style="text-align:center">
-          <div style="font-size:12px;font-weight:700;color:#f59e0b">Selected Spot</div>
-          <div style="font-size:10px;color:#94a3b8;margin-top:2px">Prediction Target</div>
+        <div style="min-width:140px">
+          <div style="font-size:12px;font-weight:700;color:#f59e0b;text-align:center">Selected Spot</div>
+          ${statsHtml}
         </div>
       `);
       selectedMarkerRef.current.addTo(mapInstance.current);
       selectedMarkerRef.current.openPopup();
     }
-  }, [selectedPoint]);
+  }, [selectedPoint, trendData]);
 
   // Render grid data as colored circles
   const renderGrid = useCallback(() => {

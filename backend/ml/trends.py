@@ -47,8 +47,12 @@ def predict_trend_arima(time_series, forecast_weeks=4, parameter_name="unknown")
         forecast_values = forecast_result.predicted_mean.tolist()
         conf_int = forecast_result.conf_int()
         
-        lower = conf_int.iloc[:, 0].tolist()
-        upper = conf_int.iloc[:, 1].tolist()
+        if hasattr(conf_int, "iloc"):
+            lower = conf_int.iloc[:, 0].tolist()
+            upper = conf_int.iloc[:, 1].tolist()
+        else:
+            lower = conf_int[:, 0].tolist()
+            upper = conf_int[:, 1].tolist()
         
         # Determine trend
         trend = _calculate_trend(valid, forecast_values)

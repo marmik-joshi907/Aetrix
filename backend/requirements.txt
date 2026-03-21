@@ -19,3 +19,13 @@ httpx
 
 # CORS
 python-multipart
+
+# Database & Spatial Processing
+psycopg2-binary
+SQLAlchemy
+geoalchemy2
+geopandas
+rasterio
+xarray
+earthpy
+pyproj
