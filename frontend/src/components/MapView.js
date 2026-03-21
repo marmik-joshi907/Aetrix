@@ -1,9 +1,15 @@
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
+import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { getValueColor, getHeatIntensity } from '../utils/constants';
+import { LAYERS } from '../utils/constants';
+import HeatmapLayer from './HeatmapLayer';
+import HotspotLayer from './HotspotLayer';
+import AnomalyLayer from './AnomalyLayer';
+import DotMatrixLayer from './DotMatrixLayer';
+import MapClickHandler from './MapClickHandler';
 
-// Fix default markers
+// Fix default marker icons (webpack issue)
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
@@ -11,207 +17,212 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 });
 
-export default function MapView({ gridData, hotspots, activeLayer, city, selectedPoint, clickedSpotData, onMapClick }) {
-  const mapRef = useRef(null);
-  const mapInstance = useRef(null);
-  const heatLayerRef = useRef(null);
-  const hotspotsLayerRef = useRef(null);
-  const gridLayerRef = useRef(null);
-  const selectedMarkerRef = useRef(null);
-
-  // Initialize map
+// Component to update map center when city changes
+function MapCenterUpdater({ city }) {
+  const map = useMap();
   useEffect(() => {
-    if (mapInstance.current) return;
-    
-    mapInstance.current = L.map(mapRef.current, {
-      center: [city?.lat || 23.0225, city?.lon || 72.5714],
-      zoom: 12,
-      zoomControl: true,
-      attributionControl: false,
-    });
-
-    // Dark tile layer
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      maxZoom: 19,
-    }).addTo(mapInstance.current);
-
-    // Attribution
-    L.control.attribution({ position: 'bottomright' })
-      .addAttribution('© CartoDB © OpenStreetMap')
-      .addTo(mapInstance.current);
-
-    // Click handler
-    mapInstance.current.on('click', (e) => {
-      if (onMapClick) onMapClick(e.latlng.lat, e.latlng.lng);
-    });
-
-    return () => {
-      if (mapInstance.current) {
-        mapInstance.current.remove();
-        mapInstance.current = null;
-      }
-    };
-  }, []);
-
-  // Update center when city changes
-  useEffect(() => {
-    if (mapInstance.current && city) {
-      mapInstance.current.setView([city.lat, city.lon], 12, { animate: true });
+    if (city) {
+      map.setView([city.lat, city.lon], 12, { animate: true });
     }
-  }, [city]);
+  }, [city, map]);
+  return null;
+}
 
-  // Render selected point marker
+// Component to invalidate size when map becomes visible
+function MapResizer() {
+  const map = useMap();
   useEffect(() => {
-    if (!mapInstance.current) return;
+    setTimeout(() => map.invalidateSize(), 100);
+  }, [map]);
+  return null;
+}
 
-    if (selectedMarkerRef.current) {
-      mapInstance.current.removeLayer(selectedMarkerRef.current);
-    }
+export default function MapView({
+  gridData,
+  hotspots,
+  anomalyData,
+  activeLayer,
+  city,
+  selectedPoint,
+  clickedSpotData,
+  onMapClick,
+  showHeatmap = true,
+  showHotspots = true,
+  showAnomalies = false,
+  showDotMatrix = true,
+  trendData,
+}) {
+  const center = [city?.lat || 23.0225, city?.lon || 72.5714];
 
-    if (selectedPoint) {
-      selectedMarkerRef.current = L.circleMarker(selectedPoint, {
-        radius: 8,
-        fillColor: '#ffffff',
-        fillOpacity: 1,
-        color: '#f59e0b',
-        weight: 3,
-        opacity: 1,
-      });
+  return (
+    <MapContainer
+      center={center}
+      zoom={12}
+      scrollWheelZoom={true}
+      style={{ height: '100%', width: '100%' }}
+      zoomControl={true}
+      attributionControl={false}
+    >
+      {/* Dark CartoDB Tiles */}
+      <TileLayer
+        url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+        maxZoom={19}
+        attribution='&copy; <a href="https://carto.com/">CartoDB</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+      />
 
-      let popupContent = `
-        <div style="text-align:center; min-width: 140px;">
-          <div style="font-size:13px;font-weight:700;color:#f59e0b">Selected Spot</div>
-          <div style="font-size:10px;color:#94a3b8;margin-bottom:8px">${selectedPoint[0].toFixed(4)}, ${selectedPoint[1].toFixed(4)}</div>
-      `;
+      {/* Auto-update center on city change */}
+      <MapCenterUpdater city={city} />
 
-      if (clickedSpotData) {
-        popupContent += `
-          <div style="text-align: left; background: rgba(0,0,0,0.2); padding: 6px; border-radius: 6px;">
-            <div style="font-size:11px; margin-bottom: 2px;">🌡️ Temp: <span style="font-weight:600; color:#ef4444">${clickedSpotData.temperature}°C</span></div>
-            <div style="font-size:11px; margin-bottom: 2px;">💨 AQI: <span style="font-weight:600; color:#eab308">Class ${clickedSpotData.pollution_aqi}</span></div>
-            <div style="font-size:11px; margin-bottom: 2px;">💧 Soil: <span style="font-weight:600; color:#3b82f6">${typeof clickedSpotData.soil_moisture === 'number' ? clickedSpotData.soil_moisture.toFixed(1) + '%' : clickedSpotData.soil_moisture}</span></div>
-            <div style="font-size:11px;">🌱 Veg: <span style="font-weight:600; color:#10b981">${clickedSpotData.vegetation_risk} Risk</span></div>
-          </div>
-        `;
-      } else {
-        popupContent += `<div style="font-size:11px;color:#94a3b8">Fetching parameters...</div>`;
-      }
+      {/* Invalidate size fix */}
+      <MapResizer />
 
-      popupContent += `</div>`;
+      {/* Click Handler */}
+      <MapClickHandler onMapClick={onMapClick} />
 
-      selectedMarkerRef.current.bindPopup(popupContent);
-      selectedMarkerRef.current.addTo(mapInstance.current);
-      selectedMarkerRef.current.openPopup();
-    }
-  }, [selectedPoint, clickedSpotData]);
+      {/* Heatmap Overlay */}
+      {showHeatmap && gridData?.points && (
+        <HeatmapLayer
+          points={gridData.points}
+          stats={gridData.stats}
+          parameter={activeLayer}
+        />
+      )}
 
-  // Render grid data as colored circles
-  const renderGrid = useCallback(() => {
-    if (!mapInstance.current) return;
+      {/* Dot Matrix Grid */}
+      {showDotMatrix && gridData?.points && (
+        <DotMatrixLayer
+          points={gridData.points}
+          parameter={activeLayer}
+          stats={gridData.stats}
+          unit={gridData.unit}
+          onDotClick={onMapClick}
+        />
+      )}
 
-    // Clear previous grid
-    if (gridLayerRef.current) {
-      mapInstance.current.removeLayer(gridLayerRef.current);
-    }
+      {/* Hotspot Markers */}
+      {showHotspots && hotspots && (
+        <HotspotLayer
+          hotspots={hotspots}
+          unit={gridData?.unit}
+        />
+      )}
 
-    if (!gridData || !gridData.points || gridData.points.length === 0) return;
+      {/* Anomaly Markers */}
+      {showAnomalies && anomalyData && (
+        <AnomalyLayer
+          anomalyData={anomalyData}
+          parameter={activeLayer}
+        />
+      )}
 
-    const circles = [];
-    const parameter = gridData.parameter;
+      {/* Selected Point Marker */}
+      {selectedPoint && (
+        <>
+          {/* Outer pulsing ring */}
+          <CircleMarker
+            center={selectedPoint}
+            radius={18}
+            pathOptions={{
+              fillColor: 'transparent',
+              fillOpacity: 0,
+              color: '#f59e0b',
+              weight: 2,
+              opacity: 0.5,
+              dashArray: '4 4',
+            }}
+            className="selected-point-pulse"
+          />
+          {/* Inner solid marker */}
+          <CircleMarker
+            center={selectedPoint}
+            radius={8}
+            pathOptions={{
+              fillColor: '#fbbf24',
+              fillOpacity: 1,
+              color: '#f59e0b',
+              weight: 3,
+              opacity: 1,
+            }}
+          >
+            <Popup>
+              <div style={{ minWidth: 200, fontFamily: "'Inter', sans-serif" }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: '#f59e0b', marginBottom: 2 }}>
+                  Selected Spot
+                </div>
+                <div style={{ fontSize: 10, color: '#64748b', marginBottom: 10 }}>
+                  {selectedPoint[0].toFixed(4)}, {selectedPoint[1].toFixed(4)}
+                </div>
 
-    gridData.points.forEach(([lat, lon, value]) => {
-      const color = getValueColor(value, parameter);
-      const intensity = getHeatIntensity(value, parameter);
-      
-      const circle = L.circleMarker([lat, lon], {
-        radius: 6,
-        fillColor: color,
-        fillOpacity: 0.35 + intensity * 0.45,
-        color: color,
-        weight: 0.5,
-        opacity: 0.5,
-      });
+                <div style={{ background: 'rgba(0,0,0,0.25)', padding: 10, borderRadius: 8 }}>
+                  {/* Parameter row */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 11 }}>
+                    <span style={{ color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', fontSize: 10 }}>Parameter</span>
+                    <span style={{ fontWeight: 700, color: '#f1f5f9' }}>
+                      {LAYERS[activeLayer]?.name?.toUpperCase() || activeLayer.toUpperCase()}
+                    </span>
+                  </div>
 
-      circle.bindPopup(`
-        <div style="text-align:center">
-          <div style="font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em">${parameter}</div>
-          <div style="font-size:20px;font-weight:800;color:${color};margin:4px 0">${value.toFixed(2)}</div>
-          <div style="font-size:10px;color:#64748b">${gridData.unit || ''}</div>
-          <div style="font-size:10px;color:#64748b;margin-top:4px">${lat.toFixed(4)}, ${lon.toFixed(4)}</div>
-        </div>
-      `);
+                  {/* Trend row */}
+                  {trendData?.trend && (
+                    <>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 11 }}>
+                        <span style={{ color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', fontSize: 10 }}>Trend</span>
+                        <span style={{
+                          fontWeight: 700,
+                          color: trendData.trend.direction === 'increasing' ? '#ef4444' :
+                                 trendData.trend.direction === 'decreasing' ? '#10b981' : '#eab308',
+                        }}>
+                          {trendData.trend.direction?.toUpperCase() || 'STABLE'}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 11 }}>
+                        <span style={{ color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', fontSize: 10 }}>Change</span>
+                        <span style={{ fontWeight: 700, color: '#f1f5f9' }}>
+                          {trendData.trend.change_percent?.toFixed(1) ?? '—'}%
+                        </span>
+                      </div>
+                    </>
+                  )}
 
-      circles.push(circle);
-    });
+                  {/* Model row */}
+                  {trendData?.model && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                      <span style={{ color: '#64748b' }}>Model</span>
+                      <span style={{ color: '#64748b', fontWeight: 500 }}>{trendData.model}</span>
+                    </div>
+                  )}
 
-    gridLayerRef.current = L.layerGroup(circles);
-    gridLayerRef.current.addTo(mapInstance.current);
-  }, [gridData]);
+                  {/* Parameter values */}
+                  {clickedSpotData && (
+                    <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(148,163,184,0.15)' }}>
+                      <div style={{ fontSize: 11, marginBottom: 4, display: 'flex', justifyContent: 'space-between' }}>
+                        <span>🌡️ Temp</span>
+                        <span style={{ fontWeight: 600, color: '#ef4444' }}>{clickedSpotData.temperature}</span>
+                      </div>
+                      <div style={{ fontSize: 11, marginBottom: 4, display: 'flex', justifyContent: 'space-between' }}>
+                        <span>💨 AQI</span>
+                        <span style={{ fontWeight: 600, color: '#eab308' }}>{clickedSpotData.pollution_aqi}</span>
+                      </div>
+                      <div style={{ fontSize: 11, marginBottom: 4, display: 'flex', justifyContent: 'space-between' }}>
+                        <span>💧 Soil</span>
+                        <span style={{ fontWeight: 600, color: '#3b82f6' }}>{clickedSpotData.soil_moisture}</span>
+                      </div>
+                      <div style={{ fontSize: 11, display: 'flex', justifyContent: 'space-between' }}>
+                        <span>🌿 NDVI</span>
+                        <span style={{ fontWeight: 600, color: '#10b981' }}>{clickedSpotData.vegetation}</span>
+                      </div>
+                    </div>
+                  )}
 
-  useEffect(() => {
-    renderGrid();
-  }, [renderGrid]);
-
-  // Render hotspot clusters
-  useEffect(() => {
-    if (!mapInstance.current) return;
-
-    if (hotspotsLayerRef.current) {
-      mapInstance.current.removeLayer(hotspotsLayerRef.current);
-    }
-
-    if (!hotspots || !hotspots.clusters || hotspots.clusters.length === 0) return;
-
-    const markers = [];
-    hotspots.clusters.forEach((cluster) => {
-      const color = cluster.level === 'critical' ? '#ef4444' :
-                    cluster.level === 'high' ? '#f97316' :
-                    cluster.level === 'moderate' ? '#eab308' : '#22c55e';
-
-      const sizeBase = 12;
-      const sizeScale = Math.min(cluster.size / 10, 3);
-      const radius = sizeBase + sizeScale * 6;
-
-      const marker = L.circleMarker([cluster.centroid_lat, cluster.centroid_lon], {
-        radius: radius,
-        fillColor: color,
-        fillOpacity: 0.4,
-        color: color,
-        weight: 2,
-        opacity: 0.8,
-        className: 'hotspot-marker',
-      });
-
-      marker.bindPopup(`
-        <div style="min-width:160px">
-          <div style="font-size:12px;font-weight:700;margin-bottom:6px;color:${color}">
-            ${hotspots.hotspot_type || 'Hotspot'}
-          </div>
-          <div style="font-size:11px;color:#94a3b8;margin-bottom:2px">
-            Severity: <span style="color:${color};font-weight:600">${cluster.level.toUpperCase()}</span>
-          </div>
-          <div style="font-size:11px;color:#94a3b8;margin-bottom:2px">
-            Size: ${cluster.size} cells
-          </div>
-          <div style="font-size:11px;color:#94a3b8;margin-bottom:2px">
-            Mean: ${cluster.mean_value.toFixed(2)} ${gridData?.unit || ''}
-          </div>
-          <div style="font-size:10px;color:#64748b;margin-top:4px">
-            ${cluster.centroid_lat.toFixed(4)}, ${cluster.centroid_lon.toFixed(4)}
-          </div>
-        </div>
-      `);
-
-      markers.push(marker);
-    });
-
-    hotspotsLayerRef.current = L.layerGroup(markers);
-    hotspotsLayerRef.current.addTo(mapInstance.current);
-  }, [hotspots, gridData]);
-
-  useEffect(() => {
-    renderGrid();
-  }, [renderGrid]);
-
-  return <div ref={mapRef} style={{ width: '100%', height: '100%' }} />;
+                  {!clickedSpotData && (
+                    <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 8, textAlign: 'center' }}>Fetching parameters...</div>
+                  )}
+                </div>
+              </div>
+            </Popup>
+          </CircleMarker>
+        </>
+      )}
+    </MapContainer>
+  );
 }
