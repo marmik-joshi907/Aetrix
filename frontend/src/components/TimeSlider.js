@@ -15,7 +15,7 @@ export default function TimeSlider({ totalWeeks, currentWeek, timestamps, onChan
           }
           return next;
         });
-      }, 400);
+      }, 1200);
     } else {
       clearInterval(intervalRef.current);
     }
