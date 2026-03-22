@@ -18,6 +18,7 @@ import {
   getExplanation, getCrowdDetection, getTimelineWarnings, getEarlyWarnings, getMunicipalDashboard
 } from './services/api';
 import { CITIES, LAYERS } from './utils/constants';
+import { generatePdfReport } from './utils/generateReport';
 
 export default function App() {
   // === Top-level view ===
@@ -83,14 +84,28 @@ export default function App() {
       setToastMsg('📌 Drop two pins on the map to compare environmental metrics.');
     }
     if (tool === 'export') {
-      setToastMsg('📄 Preparing localized PDF Report...');
+      setToastMsg('📄 Generating PDF Report...');
       setTimeout(() => {
-        window.print();
+        try {
+          generatePdfReport({
+            cityName: currentCity,
+            activeLayer,
+            gridData,
+            hotspots,
+            municipalData,
+            earlyWarningData,
+            actionPlan,
+          });
+          setToastMsg('✅ PDF Downloaded!');
+        } catch (err) {
+          setToastMsg('⚠️ PDF generation failed. Check console.');
+          console.error('PDF error:', err);
+        }
         setTimeout(() => {
           setToastMsg(null);
           setActiveSpatialTool(null);
-        }, 1000);
-      }, 1500);
+        }, 2500);
+      }, 500);
     }
   };
 
