@@ -156,6 +156,86 @@ def generate_municipal_dashboard(data_dict, metadata, hotspot_results=None, week
 
     problems = []
 
+    # --- 1. Multi-Factor Crisis Detection (Overlapping Risks) ---
+    temp_data = data_dict.get("temperature")
+    aqi_data = data_dict.get("pollution")
+    
+    if temp_data is not None and aqi_data is not None:
+        curr_temp = temp_data[week_index] if temp_data.ndim == 3 else temp_data
+        curr_aqi = aqi_data[week_index] if aqi_data.ndim == 3 else aqi_data
+        
+        # Define intersection of Heat and severe AQI
+        heat_mask = curr_temp >= 40.0
+        poll_mask = curr_aqi >= 150.0
+        intersection = heat_mask & poll_mask
+        
+        if np.any(intersection):
+            # Calculate overlapping severity
+            combined_severity = (curr_temp / 50.0) + (curr_aqi / 300.0)
+            combined_severity[~intersection] = 0
+            idx = np.unravel_index(np.argmax(combined_severity), combined_severity.shape)
+            
+            worst_temp = float(curr_temp[idx])
+            worst_aqi = float(curr_aqi[idx])
+            
+            rows, cols = curr_temp.shape
+            lat_min = bounds.get("lat_min", 0); lat_max = bounds.get("lat_max", 1)
+            lon_min = bounds.get("lon_min", 0); lon_max = bounds.get("lon_max", 1)
+            
+            lat = lat_min + (lat_max - lat_min) * idx[0] / max(1, rows - 1)
+            lon = lon_min + (lon_max - lon_min) * idx[1] / max(1, cols - 1)
+            
+            problems.append({
+                "priority_score": round(150.0 + combined_severity[idx] * 20, 2), # Mega priority boost
+                "parameter": "multi_factor",
+                "title": "Toxic Heatwave (Heat + Pollution)",
+                "icon": "☣️",
+                "category": "CRITICAL OVERLAY",
+                "location": {
+                    "lat": round(lat, 6),
+                    "lon": round(lon, 6),
+                    "area_description": _get_area_description(lat, lon, bounds)
+                },
+                "current_values": {
+                    "temp_val": f"{worst_temp:.1f} °C",
+                    "aqi_val": f"{worst_aqi:.0f} AQI",
+                    "mean": worst_temp,
+                    "max": worst_aqi,
+                    "min": 0,
+                    "unit": "Overlay",
+                },
+                "hotspot_clusters": 2,
+                "solutions": [
+                    {
+                        "action": "Declare immediate public health emergency in sector",
+                        "timeline": "Immediate",
+                        "cost": "High",
+                        "effectiveness": "Saves vulnerable populations"
+                    },
+                    {
+                        "action": "Halt all construction and divert heavy traffic",
+                        "timeline": "1 Day",
+                        "cost": "Medium-High",
+                        "effectiveness": "Stops compounding localized heat & dust"
+                    },
+                    {
+                        "action": "Deploy mobile cooling centers with air filtration",
+                        "timeline": "2 Days",
+                        "cost": "High",
+                        "effectiveness": "Immediate refuge for pedestrians"
+                    }
+                ],
+                "impact_projection": {
+                    "after_7_days": "Expected stabilization of hospitalization rates",
+                    "after_10_days": "Clearance of toxic pocket as policies take hold"
+                },
+                "status": "pending",
+                "assigned_to": "Mayor's Crisis Team",
+                "created_at": datetime.now().isoformat(),
+                "target_completion": (datetime.now() + timedelta(days=3)).isoformat(),
+            })
+
+    # --- 2. Independent Parameter Analysis ---
     for param_name, param_data in data_dict.items():
         if param_data is None:
             continue

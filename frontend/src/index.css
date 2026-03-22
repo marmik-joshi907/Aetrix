@@ -4,37 +4,37 @@
 
 /* === CSS Variables (Design Tokens) === */
 :root {
-  /* Colors — Dark Theme */
-  --bg-primary: #0a0f1e;
-  --bg-secondary: #111827;
-  --bg-card: rgba(17, 24, 39, 0.85);
-  --bg-glass: rgba(15, 23, 42, 0.75);
-  --bg-hover: rgba(30, 41, 59, 0.8);
+  /* Colors — Cyber Ecology Theme */
+  --bg-primary: #020617;
+  --bg-secondary: #052e16;
+  --bg-card: rgba(5, 46, 22, 0.6);
+  --bg-glass: rgba(2, 6, 23, 0.75);
+  --bg-hover: rgba(22, 101, 52, 0.5);
   
   /* Accent Colors */
-  --accent-emerald: #10b981;
-  --accent-emerald-glow: rgba(16, 185, 129, 0.3);
-  --accent-cyan: #06b6d4;
-  --accent-cyan-glow: rgba(6, 182, 212, 0.3);
-  --accent-amber: #f59e0b;
-  --accent-amber-glow: rgba(245, 158, 11, 0.3);
-  --accent-rose: #f43f5e;
-  --accent-rose-glow: rgba(244, 63, 94, 0.3);
-  --accent-violet: #8b5cf6;
+  --accent-emerald: #a3e635;
+  --accent-emerald-glow: rgba(163, 230, 53, 0.35);
+  --accent-cyan: #2dd4bf;
+  --accent-cyan-glow: rgba(45, 212, 191, 0.35);
+  --accent-amber: #fb923c;
+  --accent-amber-glow: rgba(251, 146, 60, 0.35);
+  --accent-rose: #fb7185;
+  --accent-rose-glow: rgba(251, 113, 133, 0.35);
+  --accent-violet: #c084fc;
   
   /* Text */
-  --text-primary: #f1f5f9;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
+  --text-primary: #f8fafc;
+  --text-secondary: #99f6e4;
+  --text-muted: #94a3b8;
   
   /* Borders */
-  --border-color: rgba(148, 163, 184, 0.12);
-  --border-glow: rgba(16, 185, 129, 0.4);
+  --border-color: rgba(45, 212, 191, 0.15);
+  --border-glow: rgba(163, 230, 53, 0.4);
   
   /* Shadows */
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
-  --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.6);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.7);
   --shadow-glow: 0 0 20px rgba(16, 185, 129, 0.15);
   
   /* Layout */
@@ -663,7 +663,118 @@ body {
   font-weight: 700;
 }
 
+/* === Spatial Analysis Toolbar === */
+.spatial-toolbar {
+  position: absolute;
+  top: 50%;
+  right: 16px;
+  transform: translateY(-50%);
+  z-index: 800;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--bg-glass);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--border-color);
+  border-radius: 24px;
+  padding: 10px;
+  box-shadow: var(--shadow-lg);
+}
+
+.spatial-tool-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 18px;
+  transition: all var(--transition-fast);
+}
+
+.spatial-tool-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent-emerald);
+  transform: scale(1.05);
+  box-shadow: 0 0 10px var(--accent-emerald-glow);
+}
+
+.spatial-tool-btn.active {
+  background: rgba(163, 230, 53, 0.15); /* Cyber Ecology Emerald Glow */
+  border-color: var(--accent-emerald);
+  box-shadow: 0 0 12px var(--accent-emerald-glow);
+}
+
+/* === Spatial Toasts === */
+.spatial-toast {
+  position: absolute;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 900;
+  background: var(--bg-glass);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  padding: 10px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  box-shadow: var(--shadow-lg);
+  animation: toast-slide-up 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes toast-slide-up {
+  from { opacity: 0; transform: translate(-50%, 20px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
 /* === Responsive === */
+
+#pdf-report-template {
+  display: none;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .map-container, .map-container * {
+    visibility: visible;
+  }
+  .map-container {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100vw;
+    height: 100vh;
+  }
+  .spatial-toolbar, .spatial-toast, .map-info-overlay, .map-click-hint, .view-switcher, .layer-toggle-row {
+    display: none !important;
+  }
+  
+  #pdf-report-template, #pdf-report-template * {
+    visibility: visible;
+  }
+  #pdf-report-template {
+    display: block !important;
+    position: absolute;
+    top: 100vh; /* Push to next page conceptually */
+    left: 0;
+    width: 100vw;
+    background: white;
+    color: black;
+    padding: 2cm;
+    box-sizing: border-box;
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    page-break-before: always;
+  }
+}
+
 @media (max-width: 768px) {
   .sidebar {
     width: 100%;
