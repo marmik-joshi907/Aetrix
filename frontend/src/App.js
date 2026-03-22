@@ -620,7 +620,7 @@ export default function App() {
           </div>
 
           {/* Map */}
-          <div className="map-container">
+          <div className="map-container map-rounded">
             {/* Hidden PDF Report Template (Rendered Only on Export) */}
             <div id="pdf-report-template">
               <div style={{ textAlign: 'center', marginBottom: 20, borderBottom: '2px solid #333', paddingBottom: 10 }}>
@@ -725,7 +725,7 @@ export default function App() {
                   {gridData.city} · {gridData.timestamp}
                 </div>
                 
-                {/* Map Legend Overlay */}
+                {/* Gradient Legend */}
                 <div style={{ marginTop: 12 }}>
                   <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>
                     Map Legend
@@ -741,9 +741,52 @@ export default function App() {
                     </span>
                   </div>
                 </div>
-
               </div>
             )}
+
+            {/* Density Legend (Right Side) */}
+            <div className="municipal-legend" style={{ bottom: 'auto', top: 160, right: 14 }}>
+              <div className="municipal-legend-title">Density Legend</div>
+              <div className="municipal-legend-item">
+                <span className="municipal-legend-dot" style={{ background: '#065f46' }} />
+                Dense / Healthy
+              </div>
+              <div className="municipal-legend-item">
+                <span className="municipal-legend-dot" style={{ background: '#22c55e' }} />
+                Moderate
+              </div>
+              <div className="municipal-legend-item">
+                <span className="municipal-legend-dot" style={{ background: '#eab308' }} />
+                Low
+              </div>
+              <div className="municipal-legend-item">
+                <span className="municipal-legend-dot" style={{ background: '#f97316' }} />
+                High Risk
+              </div>
+              <div className="municipal-legend-item">
+                <span className="municipal-legend-dot" style={{ background: '#ef4444' }} />
+                Critical
+              </div>
+            </div>
+
+            {/* Oval Date Picker */}
+            <div className="municipal-date-picker" style={{ position: 'absolute', bottom: 24, right: 80, zIndex: 800 }}>
+              <span className="municipal-date-picker-icon">📅</span>
+              <select
+                value={currentWeek}
+                onChange={(e) => handleWeekChange(parseInt(e.target.value))}
+              >
+                {Array.from({ length: totalWeeks }, (_, i) => {
+                  const d = new Date();
+                  d.setDate(d.getDate() - (totalWeeks - 1 - i) * 7);
+                  return (
+                    <option key={i} value={i}>
+                      {d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} (W{i + 1})
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
 
             {/* Spatial Analysis Toolbar (Right Edge) */}
             <div className="spatial-toolbar">

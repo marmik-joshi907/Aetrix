@@ -4,6 +4,7 @@ export default function MunicipalDashboard({ dashboardData, loading }) {
   const [taskStatuses, setTaskStatuses] = useState({});
   const [taskAssignees, setTaskAssignees] = useState({});
   const [taskUrgencies, setTaskUrgencies] = useState({});
+  const [selectedProblem, setSelectedProblem] = useState(null);
 
   if (loading) {
     return (
@@ -45,14 +46,6 @@ export default function MunicipalDashboard({ dashboardData, loading }) {
       case 'in_progress': return '🔄';
       default: return '⏳';
     }
-  };
-
-  const toggleStatus = (idx) => {
-    setTaskStatuses(prev => {
-      const current = prev[idx] || 'pending';
-      const next = current === 'pending' ? 'in_progress' : current === 'in_progress' ? 'completed' : 'pending';
-      return { ...prev, [idx]: next };
-    });
   };
 
   const healthScore = dashboardData.city_health_score || 0;
@@ -97,15 +90,15 @@ export default function MunicipalDashboard({ dashboardData, loading }) {
 
       {dashboardData.top_3_urgent?.map((problem, idx) => {
         const status = taskStatuses[idx] || problem.status || 'pending';
-        const statusColor = getStatusColor(status);
         const priorityColors = ['#ef4444', '#f97316', '#eab308'];
         const priorityColor = priorityColors[idx] || '#94a3b8';
 
         return (
           <div
             key={idx}
-            className="municipal-problem-card"
+            className="municipal-problem-card clickable"
             style={{ animationDelay: `${idx * 0.15}s` }}
+            onClick={() => setSelectedProblem(problem)}
           >
             {/* Priority Badge */}
             <div className="municipal-priority-badge" style={{ background: priorityColor }}>
@@ -161,36 +154,6 @@ export default function MunicipalDashboard({ dashboardData, loading }) {
               </div>
             )}
 
-            {/* Solutions */}
-            <div className="municipal-solutions">
-              <div className="municipal-solutions-title">💡 Recommended Solutions</div>
-              {problem.solutions?.map((sol, sIdx) => (
-                <div key={sIdx} className="municipal-solution-item">
-                  <div className="municipal-solution-action">{sol.action}</div>
-                  <div className="municipal-solution-meta">
-                    <span>⏱️ {sol.timeline}</span>
-                    <span>💰 {sol.cost}</span>
-                    <span>📊 {sol.effectiveness}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Impact Projection */}
-            <div className="municipal-impact">
-              <div className="municipal-impact-title">📈 Projected Impact</div>
-              <div className="municipal-impact-row">
-                <div className="municipal-impact-item">
-                  <span className="municipal-impact-label">After 7 days</span>
-                  <span className="municipal-impact-text">{problem.impact_projection?.after_7_days}</span>
-                </div>
-                <div className="municipal-impact-item">
-                  <span className="municipal-impact-label">After 10 days</span>
-                  <span className="municipal-impact-text">{problem.impact_projection?.after_10_days}</span>
-                </div>
-              </div>
-            </div>
-
             {/* Municipal Controls */}
             <div className="municipal-controls" style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid rgba(148, 163, 184, 0.1)', display: 'flex', flexDirection: 'column', gap: 12 }}>
               
@@ -202,7 +165,8 @@ export default function MunicipalDashboard({ dashboardData, loading }) {
                     padding: '4px 8px', borderRadius: 6, fontSize: 12, outline: 'none', cursor: 'pointer'
                   }}
                   value={taskAssignees[idx] || (problem.assigned_to || 'Unassigned')}
-                  onChange={(e) => setTaskAssignees(prev => ({ ...prev, [idx]: e.target.value }))}
+                  onChange={(e) => { e.stopPropagation(); setTaskAssignees(prev => ({ ...prev, [idx]: e.target.value })); }}
+                  onClick={(e) => e.stopPropagation()}
                 >
                   <option value="Unassigned">Unassigned</option>
                   <option value="Mayor's Crisis Team">Mayor's Crisis Team</option>
@@ -223,7 +187,7 @@ export default function MunicipalDashboard({ dashboardData, loading }) {
                         color: (taskUrgencies[idx] || 'Standard') === u ? 'var(--text-primary)' : 'var(--text-muted)',
                         border: 'none', padding: '4px 10px', borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s'
                       }}
-                      onClick={() => setTaskUrgencies(prev => ({ ...prev, [idx]: u }))}
+                      onClick={(e) => { e.stopPropagation(); setTaskUrgencies(prev => ({ ...prev, [idx]: u })); }}
                     >
                       {u}
                     </button>
@@ -242,14 +206,18 @@ export default function MunicipalDashboard({ dashboardData, loading }) {
                         ...(status === s ? { background: getStatusColor(s), color: '#fff', borderColor: getStatusColor(s) } : { background: 'transparent' }),
                         border: '1px solid var(--border-color)', padding: '4px 10px', borderRadius: 12, fontSize: 10, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s'
                       }}
-                      onClick={() => setTaskStatuses(prev => ({ ...prev, [idx]: s }))}
+                      onClick={(e) => { e.stopPropagation(); setTaskStatuses(prev => ({ ...prev, [idx]: s })); }}
                     >
                       {s === 'pending' ? 'Pending' : s === 'in_progress' ? 'In Progress' : 'Completed'}
                     </button>
                   ))}
                 </div>
               </div>
+            </div>
 
+            {/* Click Hint */}
+            <div className="municipal-card-click-hint">
+              🔍 Click for full details
             </div>
           </div>
         );
@@ -259,6 +227,92 @@ export default function MunicipalDashboard({ dashboardData, loading }) {
       <div className="municipal-footer">
         Generated at {new Date(dashboardData.generated_at).toLocaleString()} | SatIntel Environmental Intelligence
       </div>
+
+      {/* ═══ DETAIL MODAL ═══ */}
+      {selectedProblem && (
+        <div className="municipal-modal-overlay" onClick={() => setSelectedProblem(null)}>
+          <div className="municipal-modal-content" onClick={(e) => e.stopPropagation()}>
+            <button className="municipal-modal-close" onClick={() => setSelectedProblem(null)}>✕</button>
+
+            {/* Modal Header */}
+            <div className="municipal-modal-header">
+              <div className="municipal-modal-icon">{selectedProblem.icon}</div>
+              <div>
+                <div className="municipal-modal-title">{selectedProblem.title}</div>
+                <div className="municipal-modal-location">📍 {selectedProblem.location?.area_description}</div>
+              </div>
+            </div>
+
+            {/* Current Values */}
+            <div className="municipal-modal-section">
+              <div className="municipal-modal-section-title">📊 Current Values</div>
+              {selectedProblem.parameter === 'multi_factor' ? (
+                <div className="municipal-values" style={{ background: 'rgba(239, 68, 68, 0.1)' }}>
+                  <div className="municipal-value-item">
+                    <span className="municipal-value-label" style={{ color: '#fca5a5' }}>Peak Temp</span>
+                    <span className="municipal-value-num" style={{ color: '#ef4444' }}>{selectedProblem.current_values?.temp_val}</span>
+                  </div>
+                  <div className="municipal-value-item">
+                    <span className="municipal-value-label" style={{ color: '#fca5a5' }}>Peak AQI</span>
+                    <span className="municipal-value-num" style={{ color: '#f97316' }}>{selectedProblem.current_values?.aqi_val}</span>
+                  </div>
+                  <div className="municipal-value-item">
+                    <span className="municipal-value-label" style={{ color: '#fca5a5' }}>Zones Affected</span>
+                    <span className="municipal-value-num" style={{ color: '#ef4444' }}>{selectedProblem.hotspot_clusters}</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="municipal-values">
+                  <div className="municipal-value-item">
+                    <span className="municipal-value-label">Mean</span>
+                    <span className="municipal-value-num">{selectedProblem.current_values?.mean} {selectedProblem.current_values?.unit}</span>
+                  </div>
+                  <div className="municipal-value-item">
+                    <span className="municipal-value-label">Max</span>
+                    <span className="municipal-value-num" style={{ color: '#ef4444' }}>{selectedProblem.current_values?.max} {selectedProblem.current_values?.unit}</span>
+                  </div>
+                  {selectedProblem.hotspot_clusters > 0 && (
+                    <div className="municipal-value-item">
+                      <span className="municipal-value-label">Hotspots</span>
+                      <span className="municipal-value-num">{selectedProblem.hotspot_clusters} clusters</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Solutions */}
+            <div className="municipal-modal-section">
+              <div className="municipal-modal-section-title">💡 Recommended Solutions</div>
+              {selectedProblem.solutions?.map((sol, sIdx) => (
+                <div key={sIdx} className="municipal-solution-item">
+                  <div className="municipal-solution-action">{sol.action}</div>
+                  <div className="municipal-solution-meta">
+                    <span>⏱️ {sol.timeline}</span>
+                    <span>💰 {sol.cost}</span>
+                    <span>📊 {sol.effectiveness}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Impact Projection */}
+            <div className="municipal-modal-section">
+              <div className="municipal-modal-section-title">📈 Projected Impact</div>
+              <div className="municipal-impact-row">
+                <div className="municipal-impact-item">
+                  <span className="municipal-impact-label">After 7 days</span>
+                  <span className="municipal-impact-text">{selectedProblem.impact_projection?.after_7_days}</span>
+                </div>
+                <div className="municipal-impact-item">
+                  <span className="municipal-impact-label">After 10 days</span>
+                  <span className="municipal-impact-text">{selectedProblem.impact_projection?.after_10_days}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
