@@ -100,11 +100,26 @@ def get_anomalies(
         if param_data.ndim == 3:
             temporal = detect_temporal_anomalies(param_data, contamination, param_name)
         
-        # Convert anomaly_mask to serializable format
+        # Convert row/col anomaly points to lat/lon for frontend map rendering
+        bounds = meta.get("bounds", {}) if meta else {}
+        lat_min = bounds.get("lat_min", 0)
+        lat_max = bounds.get("lat_max", 1)
+        lon_min = bounds.get("lon_min", 0)
+        lon_max = bounds.get("lon_max", 1)
+        rows_total, cols_total = data_2d.shape
+        
+        geo_anomaly_points = []
+        for pt in spatial["anomaly_points"][:30]:
+            r = pt["row"]
+            c = pt["col"]
+            lat = lat_min + (lat_max - lat_min) * r / max(rows_total - 1, 1)
+            lon = lon_min + (lon_max - lon_min) * c / max(cols_total - 1, 1)
+            geo_anomaly_points.append([round(lat, 6), round(lon, 6), round(pt["severity"], 4)])
+        
         spatial_result = {
             "count": spatial["count"],
             "parameter": spatial["parameter"],
-            "anomaly_points": spatial["anomaly_points"][:30],  # Top 30
+            "anomaly_points": geo_anomaly_points,
         }
         
         results[param_name] = {
