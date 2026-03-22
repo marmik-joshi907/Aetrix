@@ -22,9 +22,6 @@ DEMO_CITY_LAT = float(os.getenv("DEMO_CITY_LAT", "23.0225"))
 DEMO_CITY_LON = float(os.getenv("DEMO_CITY_LON", "72.5714"))
 DEMO_CITY_NAME = os.getenv("DEMO_CITY_NAME", "Ahmedabad")
 
-# === Database ===
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/satintel_db")
-
 # === Grid Configuration ===
 GRID_SIZE = 50  # 50x50 grid cells
 GRID_RESOLUTION_KM = 0.5  # ~500m per cell
