@@ -16,12 +16,13 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def detect_anomalies(data_2d, contamination=0.05, parameter_name="unknown"):
+def detect_anomalies(data_2d, metadata, contamination=0.05, parameter_name="unknown"):
     """
     Detect spatial anomalies in a 2D grid using Isolation Forest.
     
     Args:
         data_2d: 2D numpy array (single timestep)
+        metadata: Dataset metadata with bounds
         contamination: Expected fraction of anomalies (0.01 to 0.1)
         parameter_name: Name of the parameter for logging
     
@@ -29,9 +30,12 @@ def detect_anomalies(data_2d, contamination=0.05, parameter_name="unknown"):
         dict with:
             'anomaly_mask': boolean 2D array (True = anomaly)
             'scores': 2D array of anomaly scores (-1=anomaly, 1=normal)
-            'anomaly_points': list of {row, col, value, severity}
+            'anomaly_points': list of [lat, lon, severity]
     """
     rows, cols = data_2d.shape
+    bounds = metadata["bounds"]
+    lats = np.linspace(bounds["lat_min"], bounds["lat_max"], rows)
+    lons = np.linspace(bounds["lon_min"], bounds["lon_max"], cols)
     
     # Flatten for sklearn
     flat_data = data_2d.flatten().reshape(-1, 1)
@@ -67,15 +71,12 @@ def detect_anomalies(data_2d, contamination=0.05, parameter_name="unknown"):
     anomaly_indices = np.where(anomaly_mask)
     for r, c in zip(anomaly_indices[0], anomaly_indices[1]):
         severity = abs(float(score_grid[r, c]))
-        anomaly_points.append({
-            "row": int(r),
-            "col": int(c),
-            "value": round(float(data_2d[r, c]), 4),
-            "severity": round(severity, 4),
-        })
+        lat = round(float(lats[r]), 6)
+        lon = round(float(lons[c]), 6)
+        anomaly_points.append([lat, lon, round(severity, 4)])
     
     # Sort by severity (most anomalous first)
-    anomaly_points.sort(key=lambda x: x["severity"], reverse=True)
+    anomaly_points.sort(key=lambda x: x[2], reverse=True)
     
     num_anomalies = int(anomaly_mask.sum())
     logger.info(f"Detected {num_anomalies} anomalies in {parameter_name} "

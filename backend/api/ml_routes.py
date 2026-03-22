@@ -93,7 +93,7 @@ def get_anomalies(
         else:
             data_2d = param_data
         
-        spatial = detect_anomalies(data_2d, contamination, param_name)
+        spatial = detect_anomalies(data_2d, meta, contamination, param_name)
         
         # Temporal anomalies
         temporal = None

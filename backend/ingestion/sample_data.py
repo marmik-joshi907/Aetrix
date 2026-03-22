@@ -91,13 +91,19 @@ def generate_time_series(grid_size=50, num_weeks=52, city_name="Ahmedabad"):
     Returns dict with keys: ndvi, temperature, pollution, soil_moisture
     Each value is a numpy array of shape (num_weeks, grid_size, grid_size)
     """
-    rng = np.random.RandomState(hash(city_name) % 2**31)
+    rng = np.random.RandomState(abs(hash(city_name)) % 2**31)
+    
+    # City-specific offsets so Analytics differs between cities
+    city_temp_offset = rng.uniform(-6, 6)
+    city_ndvi_offset = rng.uniform(-0.15, 0.15)
+    city_poll_offset = rng.uniform(-40, 60)
+    city_moisture_offset = rng.uniform(-0.1, 0.1)
     
     # Base spatial patterns
-    base_temp = _create_urban_heat_island(grid_size)
-    base_ndvi = _create_ndvi_gradient(grid_size)
-    base_pollution = _create_pollution_map(grid_size)
-    base_moisture = _create_soil_moisture(grid_size)
+    base_temp = _create_urban_heat_island(grid_size) + city_temp_offset
+    base_ndvi = _create_ndvi_gradient(grid_size) + city_ndvi_offset
+    base_pollution = _create_pollution_map(grid_size) + city_poll_offset
+    base_moisture = _create_soil_moisture(grid_size) + city_moisture_offset
     
     # Generate time series with seasonal variation
     data = {

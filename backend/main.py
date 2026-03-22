@@ -17,7 +17,7 @@ from contextlib import asynccontextmanager
 
 import config
 from pipeline.processor import DataPipeline
-from api import data_routes, ml_routes, action_routes, predict_routes
+from api import data_routes, ml_routes, action_routes, predict_routes, feature_routes
 
 # Configure logging
 logging.basicConfig(
@@ -51,6 +51,7 @@ async def lifespan(app: FastAPI):
     data_routes.pipeline = pipeline
     ml_routes.pipeline = pipeline
     action_routes.pipeline = pipeline
+    feature_routes.pipeline = pipeline
     
     logger.info("✅ Pipeline initialized. Server ready!")
     logger.info(f"📊 API docs: http://localhost:{config.BACKEND_PORT}/docs")
@@ -89,6 +90,7 @@ app.include_router(data_routes.router)
 app.include_router(ml_routes.router)
 app.include_router(action_routes.router)
 app.include_router(predict_routes.router)
+app.include_router(feature_routes.router)
 
 
 @app.get("/")
@@ -125,6 +127,7 @@ def load_city(city: str):
     data_routes.pipeline = pipeline
     ml_routes.pipeline = pipeline
     action_routes.pipeline = pipeline
+    feature_routes.pipeline = pipeline
     
     return {"status": "loaded", "city": city}
 

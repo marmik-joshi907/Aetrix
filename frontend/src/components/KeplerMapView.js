@@ -281,6 +281,7 @@ export default function AnalyticsView({ city = 'Ahmedabad', week = -1 }) {
             <div className="analytics-chart-title">🗺️ Multi-Parameter Overview Map</div>
             <div className="analytics-map-wrapper">
               <MapContainer
+                key={city}
                 center={[cityObj.lat, cityObj.lon]}
                 zoom={11}
                 scrollWheelZoom={true}
