@@ -31,3 +31,13 @@ langchain
 langchain-google-genai
 langchain-community
 faiss-cpu
+
+# Database & Spatial Processing
+psycopg2-binary
+SQLAlchemy
+geoalchemy2
+geopandas
+rasterio
+xarray
+earthpy
+pyproj

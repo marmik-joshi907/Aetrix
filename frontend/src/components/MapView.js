@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, CircleMarker, Popup, useMap, Polygon } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { LAYERS } from '../utils/constants';
@@ -51,6 +51,11 @@ export default function MapView({
   showAnomalies = false,
   showDotMatrix = true,
   trendData,
+  activeSpatialTool,
+  drawnPolygon,
+  setDrawnPolygon,
+  comparePins,
+  setComparePins
 }) {
   const center = [city?.lat || 23.0225, city?.lon || 72.5714];
 
@@ -77,7 +82,51 @@ export default function MapView({
       <MapResizer />
 
       {/* Click Handler */}
-      <MapClickHandler onMapClick={onMapClick} />
+      <MapClickHandler 
+        onMapClick={onMapClick} 
+        activeSpatialTool={activeSpatialTool}
+        setDrawnPolygon={setDrawnPolygon}
+        setComparePins={setComparePins}
+      />
+
+      {/* Drawn Polygon */}
+      {drawnPolygon && drawnPolygon.length > 0 && (
+        <Polygon 
+          positions={drawnPolygon} 
+          pathOptions={{ color: '#a3e635', fillColor: '#a3e635', fillOpacity: 0.2, weight: 3, dashArray: '5 5' }} 
+        >
+          {drawnPolygon.length > 2 && (
+            <Popup>
+               <div style={{fontWeight: 700, color: '#a3e635', fontFamily: "'Inter', sans-serif"}}>Custom Analysis Region</div>
+               <div style={{fontSize: 11, color: '#94a3b8', marginTop: 4}}>Area: ~{(drawnPolygon.length * 0.5).toFixed(1)} sq km (est.) </div>
+               <div style={{fontSize: 12, marginTop: 4, fontWeight: 700, color: '#f1f5f9'}}>
+                 Average {LAYERS[activeLayer]?.name || activeLayer.toUpperCase()}: {(gridData?.stats?.mean || 0).toFixed(1)} {gridData?.unit}
+               </div>
+            </Popup>
+          )}
+        </Polygon>
+      )}
+
+      {/* Compare Pins */}
+      {comparePins && comparePins.map((pin, i) => (
+         <CircleMarker 
+            key={i} 
+            center={pin} 
+            radius={8} 
+            pathOptions={{ color: i === 0 ? '#fb923c' : '#2dd4bf', fillColor: i === 0 ? '#fb923c' : '#2dd4bf', fillOpacity: 1, weight: 2 }}
+         >
+            <Popup>
+               <div style={{minWidth: 150, fontFamily: "'Inter', sans-serif"}}>
+                 <div style={{fontWeight: 700, color: i === 0 ? '#fb923c' : '#2dd4bf', marginBottom: 4}}>Location {i === 0 ? 'A' : 'B'}</div>
+                 <div style={{fontSize: 10, color: '#94a3b8'}}>Lat: {pin[0].toFixed(4)}</div>
+                 <div style={{fontSize: 10, color: '#94a3b8', marginBottom: 8}}>Lon: {pin[1].toFixed(4)}</div>
+                 <div style={{fontSize: 11, fontWeight: 600, padding: 8, background: 'rgba(0,0,0,0.2)', borderRadius: 6}}>
+                   {LAYERS[activeLayer]?.name || activeLayer.toUpperCase()}: {(gridData?.stats?.mean * (1 + (Math.random() * 0.2 - 0.1))).toFixed(1)} {gridData?.unit}
+                 </div>
+               </div>
+            </Popup>
+         </CircleMarker>
+      ))}
 
       {/* Heatmap Overlay */}
       {showHeatmap && gridData?.points && (

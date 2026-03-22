@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 
 export default function MunicipalDashboard({ dashboardData, loading }) {
   const [taskStatuses, setTaskStatuses] = useState({});
+  const [taskAssignees, setTaskAssignees] = useState({});
+  const [taskUrgencies, setTaskUrgencies] = useState({});
 
   if (loading) {
     return (
@@ -125,22 +127,39 @@ export default function MunicipalDashboard({ dashboardData, loading }) {
             </div>
 
             {/* Current Values */}
-            <div className="municipal-values">
-              <div className="municipal-value-item">
-                <span className="municipal-value-label">Mean</span>
-                <span className="municipal-value-num">{problem.current_values?.mean} {problem.current_values?.unit}</span>
-              </div>
-              <div className="municipal-value-item">
-                <span className="municipal-value-label">Max</span>
-                <span className="municipal-value-num" style={{ color: '#ef4444' }}>{problem.current_values?.max} {problem.current_values?.unit}</span>
-              </div>
-              {problem.hotspot_clusters > 0 && (
+            {problem.parameter === 'multi_factor' ? (
+              <div className="municipal-values" style={{ background: 'rgba(239, 68, 68, 0.1)', borderColor: 'rgba(239, 68, 68, 0.3)' }}>
                 <div className="municipal-value-item">
-                  <span className="municipal-value-label">Hotspots</span>
-                  <span className="municipal-value-num">{problem.hotspot_clusters} clusters</span>
+                  <span className="municipal-value-label" style={{ color: '#fca5a5' }}>Peak Temp</span>
+                  <span className="municipal-value-num" style={{ color: '#ef4444' }}>{problem.current_values?.temp_val}</span>
                 </div>
-              )}
-            </div>
+                <div className="municipal-value-item">
+                  <span className="municipal-value-label" style={{ color: '#fca5a5' }}>Peak AQI</span>
+                  <span className="municipal-value-num" style={{ color: '#f97316' }}>{problem.current_values?.aqi_val}</span>
+                </div>
+                <div className="municipal-value-item">
+                  <span className="municipal-value-label" style={{ color: '#fca5a5' }}>Zones Affected</span>
+                  <span className="municipal-value-num" style={{ color: '#ef4444' }}>{problem.hotspot_clusters}</span>
+                </div>
+              </div>
+            ) : (
+              <div className="municipal-values">
+                <div className="municipal-value-item">
+                  <span className="municipal-value-label">Mean</span>
+                  <span className="municipal-value-num">{problem.current_values?.mean} {problem.current_values?.unit}</span>
+                </div>
+                <div className="municipal-value-item">
+                  <span className="municipal-value-label">Max</span>
+                  <span className="municipal-value-num" style={{ color: '#ef4444' }}>{problem.current_values?.max} {problem.current_values?.unit}</span>
+                </div>
+                {problem.hotspot_clusters > 0 && (
+                  <div className="municipal-value-item">
+                    <span className="municipal-value-label">Hotspots</span>
+                    <span className="municipal-value-num">{problem.hotspot_clusters} clusters</span>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Solutions */}
             <div className="municipal-solutions">
@@ -172,23 +191,65 @@ export default function MunicipalDashboard({ dashboardData, loading }) {
               </div>
             </div>
 
-            {/* Status Toggle */}
-            <div className="municipal-status-bar">
-              <div className="municipal-status-label">
-                {getStatusIcon(status)} Status
+            {/* Municipal Controls */}
+            <div className="municipal-controls" style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid rgba(148, 163, 184, 0.1)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+              
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>👤 Assign Task To</div>
+                <select 
+                  style={{
+                    background: 'var(--bg-card)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', 
+                    padding: '4px 8px', borderRadius: 6, fontSize: 12, outline: 'none', cursor: 'pointer'
+                  }}
+                  value={taskAssignees[idx] || (problem.assigned_to || 'Unassigned')}
+                  onChange={(e) => setTaskAssignees(prev => ({ ...prev, [idx]: e.target.value }))}
+                >
+                  <option value="Unassigned">Unassigned</option>
+                  <option value="Mayor's Crisis Team">Mayor's Crisis Team</option>
+                  <option value="Environmental Agency">Environmental Agency</option>
+                  <option value="Public Works Dept">Public Works Dept</option>
+                  <option value="Health Department">Health Department</option>
+                </select>
               </div>
-              <div className="municipal-status-toggles">
-                {['pending', 'in_progress', 'completed'].map(s => (
-                  <button
-                    key={s}
-                    className={`municipal-status-btn ${status === s ? 'active' : ''}`}
-                    style={status === s ? { background: getStatusColor(s), color: '#fff' } : {}}
-                    onClick={() => setTaskStatuses(prev => ({ ...prev, [idx]: s }))}
-                  >
-                    {s === 'pending' ? 'Pending' : s === 'in_progress' ? 'In Progress' : 'Completed'}
-                  </button>
-                ))}
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>⚡ Urgency Override</div>
+                <div style={{ display: 'flex', gap: 4, background: 'var(--bg-secondary)', padding: 4, borderRadius: 8, border: '1px solid var(--border-color)' }}>
+                  {['Standard', 'Elevated', 'Critical'].map(u => (
+                    <button
+                      key={u}
+                      style={{
+                        background: (taskUrgencies[idx] || 'Standard') === u ? 'var(--bg-hover)' : 'transparent',
+                        color: (taskUrgencies[idx] || 'Standard') === u ? 'var(--text-primary)' : 'var(--text-muted)',
+                        border: 'none', padding: '4px 10px', borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s'
+                      }}
+                      onClick={() => setTaskUrgencies(prev => ({ ...prev, [idx]: u }))}
+                    >
+                      {u}
+                    </button>
+                  ))}
+                </div>
               </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>{getStatusIcon(status)} Resolution Status</div>
+                <div className="municipal-status-toggles" style={{ display: 'flex', gap: 4 }}>
+                  {['pending', 'in_progress', 'completed'].map(s => (
+                    <button
+                      key={s}
+                      className={`municipal-status-btn ${status === s ? 'active' : ''}`}
+                      style={{
+                        ...(status === s ? { background: getStatusColor(s), color: '#fff', borderColor: getStatusColor(s) } : { background: 'transparent' }),
+                        border: '1px solid var(--border-color)', padding: '4px 10px', borderRadius: 12, fontSize: 10, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s'
+                      }}
+                      onClick={() => setTaskStatuses(prev => ({ ...prev, [idx]: s }))}
+                    >
+                      {s === 'pending' ? 'Pending' : s === 'in_progress' ? 'In Progress' : 'Completed'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
             </div>
           </div>
         );

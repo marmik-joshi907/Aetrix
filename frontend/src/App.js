@@ -62,6 +62,39 @@ export default function App() {
   const [showAnomalies, setShowAnomalies] = useState(false);
   const [showDotMatrix, setShowDotMatrix] = useState(true);
 
+  // Spatial Toolbar State
+  const [activeSpatialTool, setActiveSpatialTool] = useState(null);
+  const [toastMsg, setToastMsg] = useState(null);
+  const [drawnPolygon, setDrawnPolygon] = useState([]);
+  const [comparePins, setComparePins] = useState([]);
+
+  const handleSpatialTool = (tool) => {
+    if (activeSpatialTool === tool) {
+      setActiveSpatialTool(null);
+      setToastMsg(null);
+      return;
+    }
+    setActiveSpatialTool(tool);
+    if (tool === 'draw') {
+      setDrawnPolygon([]);
+      setToastMsg('📐 Click coordinates on the map to draw. Right-click to undo point.');
+    }
+    if (tool === 'compare') {
+      setComparePins([]);
+      setToastMsg('📌 Drop two pins on the map to compare environmental metrics.');
+    }
+    if (tool === 'export') {
+      setToastMsg('📄 Preparing localized PDF Report...');
+      setTimeout(() => {
+        window.print();
+        setTimeout(() => {
+          setToastMsg(null);
+          setActiveSpatialTool(null);
+        }, 1000);
+      }, 1500);
+    }
+  };
+
   const cityObj = CITIES.find(c => c.name === currentCity) || CITIES[0];
 
   // Fetch grid data
@@ -573,6 +606,71 @@ export default function App() {
 
           {/* Map */}
           <div className="map-container">
+            {/* Hidden PDF Report Template (Rendered Only on Export) */}
+            <div id="pdf-report-template">
+              <div style={{ textAlign: 'center', marginBottom: 20, borderBottom: '2px solid #333', paddingBottom: 10 }}>
+                <h1 style={{ margin: 0, fontSize: 28, color: '#111' }}>SatIntel Environmental Intelligence Report</h1>
+                <div style={{ fontSize: 14, color: '#555', marginTop: 8 }}>
+                  <strong>City:</strong> {cityObj.name} | <strong>Date:</strong> {new Date().toLocaleDateString()}
+                </div>
+                <div style={{ fontSize: 14, color: '#555', marginTop: 4 }}>
+                  <strong>Active Parameter:</strong> {LAYERS[activeLayer]?.name.toUpperCase()}
+                </div>
+              </div>
+              
+              <div style={{ marginBottom: 30 }}>
+                <h2 style={{ fontSize: 20, borderBottom: '1px solid #ccc', paddingBottom: 4, color: '#222' }}>1. Global City Statistics</h2>
+                <div style={{ display: 'flex', gap: '40px', marginTop: 10 }}>
+                  <p style={{ margin: 0, fontSize: 14 }}><strong>City Mean:</strong> {gridData?.stats?.mean?.toFixed(2)} {gridData?.unit}</p>
+                  <p style={{ margin: 0, fontSize: 14 }}><strong>Critical Peak:</strong> <span style={{color: '#dc2626', fontWeight: 'bold'}}>{gridData?.stats?.max?.toFixed(2)} {gridData?.unit}</span></p>
+                  <p style={{ margin: 0, fontSize: 14 }}><strong>Identified Hotspot Clusters:</strong> {hotspots?.num_clusters || 0}</p>
+                </div>
+              </div>
+
+              {municipalData?.top_3_urgent && (
+                <div style={{ marginBottom: 30 }}>
+                  <h2 style={{ fontSize: 20, borderBottom: '1px solid #ccc', paddingBottom: 4, color: '#222' }}>2. Top Priority Interventions</h2>
+                  {municipalData.top_3_urgent.map((p, i) => (
+                    <div key={i} style={{ marginBottom: 20, padding: 16, border: '1px solid #ddd', borderRadius: 6, background: '#f9fafb' }}>
+                      <h3 style={{ margin: '0 0 8px 0', fontSize: 16, color: '#000' }}>
+                        Priority #{p.priority_rank}: {p.title} <span style={{fontSize: 12, color: '#666', fontWeight: 'normal'}}>(Score: {p.priority_score})</span>
+                      </h3>
+                      <div style={{ display: 'flex', gap: '20px', marginBottom: 12 }}>
+                        <p style={{ margin: 0, fontSize: 13 }}><strong>Location:</strong> {p.location?.area_description}</p>
+                        <p style={{ margin: 0, fontSize: 13 }}><strong>Metrics:</strong> Peak {p.current_values?.temp_val ? p.current_values.temp_val + " & " + p.current_values.aqi_val : (p.current_values?.max + " " + p.current_values?.unit)}</p>
+                      </div>
+                      
+                      <p style={{ margin: '0 0 6px 0', fontSize: 13, fontWeight: 'bold' }}>Prescribed Action Plan:</p>
+                      <ul style={{ margin: '0 0 12px 0', paddingLeft: 20, fontSize: 13, color: '#333' }}>
+                        {p.solutions?.map((s, idx) => (
+                          <li key={idx} style={{ marginBottom: 4 }}>
+                            <strong>{s.timeline} | Budget: {s.cost}</strong> &mdash; {s.action} <span style={{fontStyle: 'italic', color: '#16a34a'}}>(Impact: {s.effectiveness})</span>
+                          </li>
+                        ))}
+                      </ul>
+                      
+                      <div style={{ background: '#e0f2fe', padding: '8px 12px', borderRadius: 4, fontSize: 13, color: '#0369a1' }}>
+                        <strong>Projected 10-Day ROI:</strong> {p.impact_projection?.after_10_days}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {earlyWarningData?.warnings && (
+                <div style={{ marginBottom: 30 }}>
+                  <h2 style={{ fontSize: 20, borderBottom: '1px solid #ccc', paddingBottom: 4, color: '#222' }}>3. Automated Risk Forecasts (7-Day Outlook)</h2>
+                  <ul style={{ margin: 0, paddingLeft: 20 }}>
+                    {earlyWarningData.warnings.map((w, i) => (
+                      <li key={i} style={{ fontSize: 14, marginBottom: 8, color: '#333' }}>
+                        <strong>{w.parameter.toUpperCase()} Trajectory:</strong> {w.trend_summary}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+
             <MapView
               gridData={gridData}
               hotspots={hotspots}
@@ -587,6 +685,11 @@ export default function App() {
               showAnomalies={showAnomalies}
               showDotMatrix={showDotMatrix}
               trendData={trendData}
+              activeSpatialTool={activeSpatialTool}
+              drawnPolygon={drawnPolygon}
+              setDrawnPolygon={setDrawnPolygon}
+              comparePins={comparePins}
+              setComparePins={setComparePins}
             />
 
             {/* Map Info Overlay */}
@@ -624,6 +727,38 @@ export default function App() {
                   </div>
                 </div>
 
+              </div>
+            )}
+
+            {/* Spatial Analysis Toolbar (Right Edge) */}
+            <div className="spatial-toolbar">
+              <button 
+                className={`spatial-tool-btn ${activeSpatialTool === 'draw' ? 'active' : ''}`}
+                onClick={() => handleSpatialTool('draw')}
+                title="Draw Region"
+              >
+                📐
+              </button>
+              <button 
+                className={`spatial-tool-btn ${activeSpatialTool === 'compare' ? 'active' : ''}`}
+                onClick={() => handleSpatialTool('compare')}
+                title="Compare Locations"
+              >
+                📌
+              </button>
+              <button 
+                className={`spatial-tool-btn ${activeSpatialTool === 'export' ? 'active' : ''}`}
+                onClick={() => handleSpatialTool('export')}
+                title="Export PDF Report"
+              >
+                📄
+              </button>
+            </div>
+
+            {/* Floating Toast Notification */}
+            {toastMsg && (
+              <div className="spatial-toast">
+                {toastMsg}
               </div>
             )}
 
