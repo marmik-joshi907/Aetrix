@@ -231,7 +231,220 @@ Aetrix is a comprehensive environmental monitoring and analysis platform that le
 
 The application runs in demo mode by default using sample data, requiring no API keys for initial exploration.
 
-## 📊 Data Sources & Parameters
+## � Deployment
+
+### Prerequisites for Deployment
+
+- Docker and Docker Compose
+- PostgreSQL with PostGIS (or use Docker)
+- Node.js 16+ (for building frontend)
+- Python 3.8+ (for backend)
+
+### Local Deployment with Docker
+
+1. **Clone and navigate to the project**
+   ```bash
+   git clone https://github.com/your-org/Satintel.git
+   ```
+
+2. **Set up environment variables**
+   ```bash
+   cp .env.example .env
+   # Edit .env with your configuration
+   ```
+
+3. **Build and run with Docker Compose**
+   ```bash
+   # Build the services
+   docker-compose build
+
+   # Start all services
+   docker-compose up -d
+   ```
+
+4. **Access the application**
+   - Frontend: `http://localhost:3000`
+   - Backend API: `http://localhost:8000`
+   - API Docs: `http://localhost:8000/docs`
+
+### Production Deployment
+
+#### Option 1: Docker Compose (Recommended)
+
+Create a `docker-compose.prod.yml`:
+
+```yaml
+version: '3.8'
+
+services:
+  db:
+    image: postgis/postgis:15-3.3
+    environment:
+      POSTGRES_DB: aetrix
+      POSTGRES_USER: aetrix_user
+      POSTGRES_PASSWORD: your_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      - DATABASE_URL=postgresql://aetrix_user:your_password@db:5432/aetrix
+      - USE_SAMPLE_DATA=true
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+
+volumes:
+  postgres_data:
+```
+
+#### Option 2: Cloud Deployment (Azure)
+
+1. **Azure Container Registry**
+   ```bash
+   # Build and push images
+   az acr build --registry myregistry --image backend:latest ./backend
+   az acr build --registry myregistry --image frontend:latest ./frontend
+   ```
+
+2. **Azure Database for PostgreSQL**
+   ```bash
+   az postgres flexible-server create \
+     --name aetrix-db \
+     --resource-group myResourceGroup \
+     --location eastus \
+     --admin-user aetrixadmin \
+     --admin-password myPassword \
+     --sku-name Standard_B1ms \
+     --tier Burstable \
+     --public-access 0.0.0.0
+   ```
+
+3. **Azure Container Apps**
+   ```bash
+   # Deploy backend
+   az containerapp create \
+     --name aetrix-backend \
+     --resource-group myResourceGroup \
+     --environment myEnvironment \
+     --image myregistry.azurecr.io/backend:latest \
+     --target-port 8000 \
+     --ingress external
+
+   # Deploy frontend
+   az containerapp create \
+     --name aetrix-frontend \
+     --resource-group myResourceGroup \
+     --environment myEnvironment \
+     --image myregistry.azurecr.io/frontend:latest \
+     --target-port 80 \
+     --ingress external
+   ```
+
+#### Option 3: Heroku Deployment
+
+1. **Backend Deployment**
+   ```bash
+   # Create Heroku app
+   heroku create aetrix-backend
+
+   # Set environment variables
+   heroku config:set DATABASE_URL=your_postgres_url
+   heroku config:set USE_SAMPLE_DATA=true
+
+   # Deploy
+   git push heroku main
+   ```
+
+2. **Frontend Deployment**
+   ```bash
+   # Build the app
+   cd frontend
+   npm run build
+
+   # Deploy to Netlify, Vercel, or similar
+   # For static hosting
+   ```
+
+### Dockerfiles
+
+#### Backend Dockerfile
+```dockerfile
+FROM python:3.9-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+EXPOSE 8000
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+#### Frontend Dockerfile
+```dockerfile
+FROM node:16-alpine as build
+
+WORKDIR /app
+
+COPY package*.json .
+RUN npm install
+
+COPY . .
+RUN npm run build
+
+FROM nginx:alpine
+COPY --from=build /app/build /usr/share/nginx/html
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]
+```
+
+### Environment Configuration
+
+Create a `.env` file with:
+
+```env
+# Database
+DATABASE_URL=postgresql://user:password@localhost:5432/aetrix
+
+# API Keys (optional for demo mode)
+GOOGLE_EARTH_ENGINE_PROJECT=your-gee-project
+NASA_CMR_TOKEN=your-nasa-token
+SENTINEL_HUB_CLIENT_ID=your-sentinel-id
+SENTINEL_HUB_CLIENT_SECRET=your-sentinel-secret
+
+# Application Settings
+USE_SAMPLE_DATA=true
+DEMO_CITY=Ahmedabad
+```
+
+### Monitoring and Scaling
+
+- **Health Checks**: Backend includes `/health` endpoint
+- **Logging**: Structured logging with JSON format
+- **Metrics**: Prometheus-compatible metrics (optional)
+- **Scaling**: Horizontal scaling with load balancer
+
+## �📊 Data Sources & Parameters
 
 ### Satellite Data Sources
 
@@ -343,7 +556,7 @@ Complete API documentation is available at `http://localhost:8000/docs` when the
 ### Project Structure
 
 ```
-aetrix/
+Satintel/
 ├── backend/
 │   ├── api/                 # FastAPI route handlers
 │   │   ├── data_routes.py   # Data retrieval endpoints
@@ -458,11 +671,7 @@ The ETL pipeline runs automatically on startup:
 - **Performance Optimization**: Faster data processing and rendering
 - **Mobile Support**: Responsive design for mobile devices
 
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
+### Acknowledgments
 
 - **Google Earth Engine** for satellite data access
 - **NASA** for earth observation data
@@ -470,12 +679,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **OpenStreetMap** contributors for base maps
 - **CartoDB** for dark theme tiles
 
-## 📞 Support
-
-- **Issues**: [GitHub Issues](https://github.com/your-org/aetrix/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/your-org/aetrix/discussions)
-- **Documentation**: [Wiki](https://github.com/your-org/aetrix/wiki)
-
----
 
 **Demo City**: Ahmedabad, India — Showcasing urban heat islands, monsoon NDVI patterns, and industrial pollution hotspots.
