@@ -17,7 +17,7 @@ from contextlib import asynccontextmanager
 
 import config
 from pipeline.processor import DataPipeline
-from api import data_routes, ml_routes, action_routes, predict_routes, feature_routes
+from api import data_routes, ml_routes, action_routes, predict_routes, feature_routes, chat_routes
 
 # Configure logging
 logging.basicConfig(
@@ -52,6 +52,17 @@ async def lifespan(app: FastAPI):
     ml_routes.pipeline = pipeline
     action_routes.pipeline = pipeline
     feature_routes.pipeline = pipeline
+    
+    # Initialize RAG chatbot engine
+    logger.info("Initializing RAG chatbot engine...")
+    try:
+        from rag.rag_engine import init_engine
+        GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "AIzaSyAjq4GT4LrpeYv0-FxV5NB3EfSVaDiYHr8")
+        rag = init_engine(GEMINI_API_KEY)
+        rag.set_pipeline(pipeline)
+        logger.info("✅ RAG chatbot engine ready")
+    except Exception as e:
+        logger.warning(f"⚠️ RAG engine init failed (chat will be unavailable): {e}")
     
     logger.info("✅ Pipeline initialized. Server ready!")
     logger.info(f"📊 API docs: http://localhost:{config.BACKEND_PORT}/docs")
@@ -91,6 +102,7 @@ app.include_router(ml_routes.router)
 app.include_router(action_routes.router)
 app.include_router(predict_routes.router)
 app.include_router(feature_routes.router)
+app.include_router(chat_routes.router)
 
 
 @app.get("/")
@@ -128,6 +140,15 @@ def load_city(city: str):
     ml_routes.pipeline = pipeline
     action_routes.pipeline = pipeline
     feature_routes.pipeline = pipeline
+    
+    # Update RAG pipeline reference
+    try:
+        from rag.rag_engine import get_engine
+        engine = get_engine()
+        if engine:
+            engine.set_pipeline(pipeline)
+    except Exception:
+        pass
     
     return {"status": "loaded", "city": city}
 

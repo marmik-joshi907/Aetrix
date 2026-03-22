@@ -80,4 +80,8 @@ export const getMunicipalDashboard = (city = null, week = -1) =>
 // City loading
 export const loadCity = (city) => api.get('/api/load-city', { params: { city } });
 
+// RAG Chatbot
+export const sendChatMessage = (message, city = null, week = -1) =>
+  api.post('/api/chat', { message, city, week });
+
 export default api;

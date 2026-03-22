@@ -25,3 +25,9 @@ shapely
 
 # CORS
 python-multipart
+
+# RAG Chatbot
+langchain
+langchain-google-genai
+langchain-community
+faiss-cpu

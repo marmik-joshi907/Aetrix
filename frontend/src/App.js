@@ -12,6 +12,7 @@ import CrowdDetection from './components/CrowdDetection';
 import TimelineWarnings from './components/TimelineWarnings';
 import EarlyWarnings from './components/EarlyWarnings';
 import MunicipalDashboard from './components/MunicipalDashboard';
+import ChatWidget from './components/ChatWidget';
 import { 
   getGridData, getHotspots, getAnomalies, predictTrend, getActionPlan, loadCity, getWeekCount,
   predictTemperature, predictSoil, predictPollution, predictLanduse, getData,
@@ -706,6 +707,8 @@ export default function App() {
         </div>
       )}
 
+      {/* RAG Chatbot */}
+      <ChatWidget currentCity={currentCity} currentWeek={currentWeek} />
     </div>
   );
 }
