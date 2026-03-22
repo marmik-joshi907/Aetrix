@@ -7,15 +7,21 @@ import Dashboard from './components/Dashboard';
 import ActionPlan from './components/ActionPlan';
 import CitySelector from './components/CitySelector';
 import Prediction from './components/Prediction';
+import ExplainPanel from './components/ExplainPanel';
+import CrowdDetection from './components/CrowdDetection';
+import TimelineWarnings from './components/TimelineWarnings';
+import EarlyWarnings from './components/EarlyWarnings';
+import MunicipalDashboard from './components/MunicipalDashboard';
 import { 
   getGridData, getHotspots, getAnomalies, predictTrend, getActionPlan, loadCity, getWeekCount,
-  predictTemperature, predictSoil, predictPollution, predictLanduse, getData
+  predictTemperature, predictSoil, predictPollution, predictLanduse, getData,
+  getExplanation, getCrowdDetection, getTimelineWarnings, getEarlyWarnings, getMunicipalDashboard
 } from './services/api';
 import { CITIES, LAYERS } from './utils/constants';
 
 export default function App() {
   // === Top-level view ===
-  const [activeView, setActiveView] = useState('map'); // 'map' | 'analytics'
+  const [activeView, setActiveView] = useState('map'); // 'map' | 'analytics' | 'municipal'
 
   // State
   const [currentCity, setCurrentCity] = useState('Ahmedabad');
@@ -33,6 +39,16 @@ export default function App() {
   const [mlPrediction, setMlPrediction] = useState(null);
   const [actionPlan, setActionPlan] = useState(null);
   
+  // New feature data
+  const [explanationData, setExplanationData] = useState(null);
+  const [crowdData, setCrowdData] = useState(null);
+  const [crowdLoading, setCrowdLoading] = useState(false);
+  const [timelineWarningData, setTimelineWarningData] = useState(null);
+  const [earlyWarningData, setEarlyWarningData] = useState(null);
+  const [earlyWarningLoading, setEarlyWarningLoading] = useState(false);
+  const [municipalData, setMunicipalData] = useState(null);
+  const [municipalLoading, setMunicipalLoading] = useState(false);
+
   // UI
   const [activeTab, setActiveTab] = useState('layers');
   const [loading, setLoading] = useState(true);
@@ -131,6 +147,72 @@ export default function App() {
     }
   }, [currentCity]);
 
+  // === New Feature Fetchers ===
+
+  // Fetch explanation for a point
+  const fetchExplanation = async (lat, lon) => {
+    try {
+      const res = await getExplanation(lat, lon, currentWeek, currentCity);
+      setExplanationData(res.data);
+    } catch (err) {
+      console.error('Explanation error:', err);
+      setExplanationData(null);
+    }
+  };
+
+  // Fetch crowd detection data
+  const fetchCrowdDetection = useCallback(async () => {
+    setCrowdLoading(true);
+    try {
+      const res = await getCrowdDetection(currentCity, currentWeek);
+      setCrowdData(res.data);
+    } catch (err) {
+      console.error('Crowd detection error:', err);
+      setCrowdData(null);
+    } finally {
+      setCrowdLoading(false);
+    }
+  }, [currentCity, currentWeek]);
+
+  // Fetch timeline warnings
+  const fetchTimelineWarnings = useCallback(async () => {
+    try {
+      const res = await getTimelineWarnings(currentCity, currentWeek);
+      setTimelineWarningData(res.data);
+    } catch (err) {
+      console.error('Timeline warnings error:', err);
+      setTimelineWarningData(null);
+    }
+  }, [currentCity, currentWeek]);
+
+  // Fetch early warnings
+  const fetchEarlyWarnings = useCallback(async () => {
+    setEarlyWarningLoading(true);
+    try {
+      const res = await getEarlyWarnings(currentCity, currentWeek);
+      setEarlyWarningData(res.data);
+    } catch (err) {
+      console.error('Early warnings error:', err);
+      setEarlyWarningData(null);
+    } finally {
+      setEarlyWarningLoading(false);
+    }
+  }, [currentCity, currentWeek]);
+
+  // Fetch municipal dashboard
+  const fetchMunicipalDashboard = useCallback(async () => {
+    setMunicipalLoading(true);
+    try {
+      const res = await getMunicipalDashboard(currentCity, currentWeek);
+      setMunicipalData(res.data);
+    } catch (err) {
+      console.error('Municipal dashboard error:', err);
+      setMunicipalData(null);
+    } finally {
+      setMunicipalLoading(false);
+    }
+  }, [currentCity, currentWeek]);
+
   // Initial load
   useEffect(() => {
     const init = async () => {
@@ -139,10 +221,14 @@ export default function App() {
       setSelectedPoint(null);
       setClickedSpotData(null);
       setMlPrediction(null);
+      setExplanationData(null);
       try {
         await fetchWeekCount();
         await fetchGridData();
-        await Promise.all([fetchHotspots(), fetchAnomalies(), fetchTrend(), fetchActionPlan()]);
+        await Promise.all([
+          fetchHotspots(), fetchAnomalies(), fetchTrend(), fetchActionPlan(),
+          fetchTimelineWarnings(), fetchEarlyWarnings(),
+        ]);
       } catch (err) {
         setError('Failed to connect to backend. Make sure the server is running on port 8000.');
       }
@@ -184,10 +270,28 @@ export default function App() {
     }
   }, [currentWeek]);
 
+  // Fetch crowd detection when tab is selected
+  useEffect(() => {
+    if (activeTab === 'crowd' && !crowdData && !crowdLoading) {
+      fetchCrowdDetection();
+    }
+  }, [activeTab]);
+
+  // Fetch municipal data when view is selected
+  useEffect(() => {
+    if (activeView === 'municipal' && !municipalData && !municipalLoading) {
+      fetchMunicipalDashboard();
+    }
+  }, [activeView]);
+
   // City change
   const handleCityChange = async (cityName) => {
     setLoading(true);
     setCurrentCity(cityName);
+    setCrowdData(null);
+    setMunicipalData(null);
+    setEarlyWarningData(null);
+    setTimelineWarningData(null);
     try {
       await loadCity(cityName);
     } catch (err) {
@@ -213,6 +317,7 @@ export default function App() {
     setActiveTab('prediction');
     setClickedSpotData(null);
     setPointLoading(true);
+    setExplanationData(null);
 
     try {
       // 1. Fetch all 4 parameter values at clicked point using getData API
@@ -243,6 +348,9 @@ export default function App() {
       // 3. Fetch ML prediction for active layer
       await fetchMLPrediction(lat, lon, activeLayer);
 
+      // 4. Fetch explanation (new feature)
+      fetchExplanation(lat, lon);
+
     } catch (err) {
       console.error('Map click error:', err);
       // Still show fallback values so the UI isn't stuck
@@ -268,6 +376,9 @@ export default function App() {
       setCurrentWeek(val);
     }
   };
+
+  // Count active early warnings for badge
+  const earlyWarningCount = earlyWarningData?.alert_count || 0;
 
   return (
     <div className="app-container">
@@ -300,6 +411,13 @@ export default function App() {
           <span className="view-tab-icon">📊</span>
           Analytics
         </button>
+        <button
+          className={`view-tab ${activeView === 'municipal' ? 'active' : ''}`}
+          onClick={() => setActiveView('municipal')}
+        >
+          <span className="view-tab-icon">🏛️</span>
+          Municipal
+        </button>
       </div>
 
       {/* ═══ MAP VIEW ═══ */}
@@ -313,7 +431,6 @@ export default function App() {
               <div>
                 <div className="sidebar-title">SatIntel</div>
                 <div className="sidebar-subtitle">Environmental Intelligence</div>
->>>>>>> f9c660344f1b0759207c0942418e1e16bef6bd5b
               </div>
             </div>
 
@@ -349,6 +466,22 @@ export default function App() {
                 onClick={() => setActiveTab('prediction')}
               >
                 Prediction
+              </button>
+              <button
+                className={`nav-tab ${activeTab === 'warnings' ? 'active' : ''}`}
+                onClick={() => setActiveTab('warnings')}
+                style={{ position: 'relative' }}
+              >
+                Warnings
+                {earlyWarningCount > 0 && (
+                  <span className="warning-badge-count">{earlyWarningCount}</span>
+                )}
+              </button>
+              <button
+                className={`nav-tab ${activeTab === 'crowd' ? 'active' : ''}`}
+                onClick={() => setActiveTab('crowd')}
+              >
+                Crowd
               </button>
             </div>
 
@@ -407,13 +540,31 @@ export default function App() {
               )}
 
               {activeTab === 'prediction' && (
-                <Prediction
-                  trendData={trendData}
-                  mlPrediction={mlPrediction}
-                  activeLayer={activeLayer}
-                  selectedPoint={selectedPoint}
-                  pointLoading={pointLoading}
-                  clickedSpotData={clickedSpotData}
+                <>
+                  <Prediction
+                    trendData={trendData}
+                    mlPrediction={mlPrediction}
+                    activeLayer={activeLayer}
+                    selectedPoint={selectedPoint}
+                    pointLoading={pointLoading}
+                    clickedSpotData={clickedSpotData}
+                  />
+                  <ExplainPanel explanationData={explanationData} />
+                  <TimelineWarnings warningData={timelineWarningData} />
+                </>
+              )}
+
+              {activeTab === 'warnings' && (
+                <EarlyWarnings
+                  warningData={earlyWarningData}
+                  loading={earlyWarningLoading}
+                />
+              )}
+
+              {activeTab === 'crowd' && (
+                <CrowdDetection
+                  crowdData={crowdData}
+                  loading={crowdLoading}
                 />
               )}
             </div>
@@ -541,6 +692,16 @@ export default function App() {
           <AnalyticsView
             city={currentCity}
             week={currentWeek}
+          />
+        </div>
+      )}
+
+      {/* ═══ MUNICIPAL VIEW ═══ */}
+      {activeView === 'municipal' && (
+        <div className="municipal-container">
+          <MunicipalDashboard
+            dashboardData={municipalData}
+            loading={municipalLoading}
           />
         </div>
       )}

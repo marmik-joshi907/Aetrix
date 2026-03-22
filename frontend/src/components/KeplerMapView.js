@@ -31,6 +31,16 @@ function MapResizer() {
   return null;
 }
 
+function MapCenterUpdater({ lat, lon }) {
+  const map = useMap();
+  useEffect(() => {
+    if (lat && lon) {
+      map.setView([lat, lon], 11, { animate: true });
+    }
+  }, [lat, lon, map]);
+  return null;
+}
+
 const PARAM_COLORS = {
   temperature: { main: '#ef4444', bg: 'rgba(239,68,68,0.15)', border: 'rgba(239,68,68,0.4)' },
   ndvi: { main: '#10b981', bg: 'rgba(16,185,129,0.15)', border: 'rgba(16,185,129,0.4)' },
@@ -281,6 +291,7 @@ export default function AnalyticsView({ city = 'Ahmedabad', week = -1 }) {
             <div className="analytics-chart-title">🗺️ Multi-Parameter Overview Map</div>
             <div className="analytics-map-wrapper">
               <MapContainer
+                key={city}
                 center={[cityObj.lat, cityObj.lon]}
                 zoom={11}
                 scrollWheelZoom={true}
@@ -292,6 +303,7 @@ export default function AnalyticsView({ city = 'Ahmedabad', week = -1 }) {
                   maxZoom={19}
                 />
                 <MapResizer />
+                <MapCenterUpdater lat={cityObj.lat} lon={cityObj.lon} />
                 {mapPoints.map((pt, i) => (
                   <CircleMarker
                     key={i}

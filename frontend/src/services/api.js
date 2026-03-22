@@ -61,6 +61,22 @@ export const predictLanduse = (lat, lon, pm25, no2) =>
 export const getActionPlan = (city = null, week = -1) =>
   api.get('/api/action-plan', { params: { city, week } });
 
+// New Feature endpoints
+export const getExplanation = (lat, lon, week = -1, city = null) =>
+  api.get('/api/explain', { params: { lat, lon, week, city } });
+
+export const getCrowdDetection = (city = null, week = -1) =>
+  api.get('/api/crowd-detection', { params: { city, week } });
+
+export const getTimelineWarnings = (city = null, week = -1, lookback = 4) =>
+  api.get('/api/timeline-warnings', { params: { city, week, lookback } });
+
+export const getEarlyWarnings = (city = null, week = -1, forecastDays = 10) =>
+  api.get('/api/early-warnings', { params: { city, week, forecast_days: forecastDays } });
+
+export const getMunicipalDashboard = (city = null, week = -1) =>
+  api.get('/api/municipal-dashboard', { params: { city, week } });
+
 // City loading
 export const loadCity = (city) => api.get('/api/load-city', { params: { city } });
 
