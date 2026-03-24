@@ -1,5 +1,49 @@
 import React, { useState } from 'react';
 
+const PARAM_LABELS = {
+  temperature: '🌡️ Temp', pollution: '🏭 AQI',
+  ndvi: '🌿 NDVI', soil_moisture: '💧 Soil',
+};
+
+function WowBadge({ delta, direction, label }) {
+  if (delta == null) return null;
+  const arrow = direction === 'worsening' ? '▲' : direction === 'improving' ? '▼' : '—';
+  const color = direction === 'worsening' ? '#ef4444' : direction === 'improving' ? '#22c55e' : '#94a3b8';
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 2,
+      fontSize: 9, fontWeight: 700, color,
+      background: `${color}15`, padding: '2px 6px', borderRadius: 6,
+    }}>
+      {arrow} {label || ''}{typeof delta === 'number' ? Math.abs(delta).toFixed(2) : ''} WoW
+    </span>
+  );
+}
+
+function CrossParamBadges({ context }) {
+  if (!context || Object.keys(context).length === 0) return null;
+  return (
+    <div style={{
+      display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8,
+    }}>
+      <span style={{ fontSize: 9, color: 'var(--text-muted)', width: '100%', marginBottom: 2, textTransform: 'uppercase' }}>
+        📍 At this location
+      </span>
+      {Object.entries(context).map(([param, data]) => (
+        <span key={param} style={{
+          fontSize: 9, fontWeight: 600,
+          padding: '2px 8px', borderRadius: 10,
+          background: 'rgba(148,163,184,0.1)',
+          color: 'var(--text-secondary)',
+          border: '1px solid rgba(148,163,184,0.15)',
+        }}>
+          {PARAM_LABELS[param] || param}: {data.value} {data.unit}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 export default function MunicipalDashboard({ dashboardData, loading }) {
   const [taskStatuses, setTaskStatuses] = useState({});
   const [taskAssignees, setTaskAssignees] = useState({});
@@ -58,7 +102,10 @@ export default function MunicipalDashboard({ dashboardData, loading }) {
         <div className="municipal-header-top">
           <div>
             <div className="municipal-title">🏛️ Municipal Dashboard</div>
-            <div className="municipal-subtitle">{dashboardData.city} · {dashboardData.analysis_date}</div>
+            <div className="municipal-subtitle">
+              {dashboardData.city} · {dashboardData.analysis_date}
+              {dashboardData.total_area_km2 && ` · ${dashboardData.total_area_km2} km²`}
+            </div>
           </div>
         </div>
 
@@ -142,9 +189,15 @@ export default function MunicipalDashboard({ dashboardData, loading }) {
                   <span className="municipal-value-num">{problem.current_values?.mean} {problem.current_values?.unit}</span>
                 </div>
                 <div className="municipal-value-item">
-                  <span className="municipal-value-label">Max</span>
+                  <span className="municipal-value-label">Peak</span>
                   <span className="municipal-value-num" style={{ color: '#ef4444' }}>{problem.current_values?.max} {problem.current_values?.unit}</span>
                 </div>
+                {problem.current_values?.p95 != null && (
+                  <div className="municipal-value-item">
+                    <span className="municipal-value-label" style={{ color: '#f97316' }}>P95</span>
+                    <span className="municipal-value-num">{problem.current_values.p95} {problem.current_values?.unit}</span>
+                  </div>
+                )}
                 {problem.hotspot_clusters > 0 && (
                   <div className="municipal-value-item">
                     <span className="municipal-value-label">Hotspots</span>
@@ -153,6 +206,44 @@ export default function MunicipalDashboard({ dashboardData, loading }) {
                 )}
               </div>
             )}
+
+            {/* Enriched Stats Row */}
+            <div style={{
+              display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8,
+              padding: '6px 8px', background: 'rgba(148,163,184,0.04)',
+              borderRadius: 6, border: '1px solid rgba(148,163,184,0.08)',
+            }}>
+              {problem.current_values?.std_dev != null && (
+                <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>σ {problem.current_values.std_dev}</span>
+              )}
+              {problem.spatial_coverage_pct != null && (
+                <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 6, background: 'rgba(239,68,68,0.1)', color: '#ef4444', fontWeight: 600 }}>
+                  {problem.spatial_coverage_pct}% exceeded
+                </span>
+              )}
+              {problem.affected_area_km2 != null && (
+                <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 6, background: 'rgba(59,130,246,0.1)', color: '#3b82f6', fontWeight: 600 }}>
+                  {problem.affected_area_km2} km²
+                </span>
+              )}
+              {problem.wow_delta != null && typeof problem.wow_delta === 'number' && (
+                <WowBadge delta={problem.wow_delta} direction={problem.wow_direction} />
+              )}
+              {problem.wow_delta != null && typeof problem.wow_delta === 'object' && (
+                <>
+                  <WowBadge delta={problem.wow_delta.temp_delta} direction={problem.wow_delta.temp_delta > 0 ? 'worsening' : 'improving'} label="T " />
+                  <WowBadge delta={problem.wow_delta.aqi_delta} direction={problem.wow_delta.aqi_delta > 0 ? 'worsening' : 'improving'} label="AQI " />
+                </>
+              )}
+              {problem.hotspot_intensity > 0 && (
+                <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 6, background: 'rgba(249,115,22,0.1)', color: '#f97316', fontWeight: 600 }}>
+                  Intensity: {(problem.hotspot_intensity * 100).toFixed(0)}%
+                </span>
+              )}
+            </div>
+
+            {/* Cross Parameter Context */}
+            <CrossParamBadges context={problem.cross_parameter_context} />
 
             {/* Municipal Controls */}
             <div className="municipal-controls" style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid rgba(148, 163, 184, 0.1)', display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -257,6 +348,14 @@ export default function MunicipalDashboard({ dashboardData, loading }) {
                     <span className="municipal-value-num" style={{ color: '#f97316' }}>{selectedProblem.current_values?.aqi_val}</span>
                   </div>
                   <div className="municipal-value-item">
+                    <span className="municipal-value-label" style={{ color: '#fca5a5' }}>P95 Temp</span>
+                    <span className="municipal-value-num" style={{ color: '#ef4444' }}>{selectedProblem.current_values?.p95_temp}</span>
+                  </div>
+                  <div className="municipal-value-item">
+                    <span className="municipal-value-label" style={{ color: '#fca5a5' }}>P95 AQI</span>
+                    <span className="municipal-value-num" style={{ color: '#f97316' }}>{selectedProblem.current_values?.p95_aqi}</span>
+                  </div>
+                  <div className="municipal-value-item">
                     <span className="municipal-value-label" style={{ color: '#fca5a5' }}>Zones Affected</span>
                     <span className="municipal-value-num" style={{ color: '#ef4444' }}>{selectedProblem.hotspot_clusters}</span>
                   </div>
@@ -271,6 +370,18 @@ export default function MunicipalDashboard({ dashboardData, loading }) {
                     <span className="municipal-value-label">Max</span>
                     <span className="municipal-value-num" style={{ color: '#ef4444' }}>{selectedProblem.current_values?.max} {selectedProblem.current_values?.unit}</span>
                   </div>
+                  {selectedProblem.current_values?.p95 != null && (
+                    <div className="municipal-value-item">
+                      <span className="municipal-value-label" style={{ color: '#f97316' }}>P95</span>
+                      <span className="municipal-value-num">{selectedProblem.current_values.p95} {selectedProblem.current_values?.unit}</span>
+                    </div>
+                  )}
+                  {selectedProblem.current_values?.std_dev != null && (
+                    <div className="municipal-value-item">
+                      <span className="municipal-value-label">Std Dev (σ)</span>
+                      <span className="municipal-value-num">{selectedProblem.current_values.std_dev}</span>
+                    </div>
+                  )}
                   {selectedProblem.hotspot_clusters > 0 && (
                     <div className="municipal-value-item">
                       <span className="municipal-value-label">Hotspots</span>
@@ -279,6 +390,41 @@ export default function MunicipalDashboard({ dashboardData, loading }) {
                   )}
                 </div>
               )}
+
+              {/* Enriched stats in modal */}
+              <div style={{
+                display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10,
+                padding: '6px 8px', background: 'rgba(148,163,184,0.04)',
+                borderRadius: 6, border: '1px solid rgba(148,163,184,0.08)',
+              }}>
+                {selectedProblem.spatial_coverage_pct != null && (
+                  <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 8, background: 'rgba(239,68,68,0.1)', color: '#ef4444', fontWeight: 600 }}>
+                    📐 {selectedProblem.spatial_coverage_pct}% grid exceeded
+                  </span>
+                )}
+                {selectedProblem.affected_area_km2 != null && (
+                  <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 8, background: 'rgba(59,130,246,0.1)', color: '#3b82f6', fontWeight: 600 }}>
+                    📏 {selectedProblem.affected_area_km2} km² affected
+                  </span>
+                )}
+                {selectedProblem.wow_delta != null && typeof selectedProblem.wow_delta === 'number' && (
+                  <WowBadge delta={selectedProblem.wow_delta} direction={selectedProblem.wow_direction} />
+                )}
+                {selectedProblem.wow_delta != null && typeof selectedProblem.wow_delta === 'object' && (
+                  <>
+                    <WowBadge delta={selectedProblem.wow_delta.temp_delta} direction={selectedProblem.wow_delta.temp_delta > 0 ? 'worsening' : 'improving'} label="Temp " />
+                    <WowBadge delta={selectedProblem.wow_delta.aqi_delta} direction={selectedProblem.wow_delta.aqi_delta > 0 ? 'worsening' : 'improving'} label="AQI " />
+                  </>
+                )}
+                {selectedProblem.hotspot_intensity > 0 && (
+                  <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 8, background: 'rgba(249,115,22,0.1)', color: '#f97316', fontWeight: 600 }}>
+                    🔥 Intensity: {(selectedProblem.hotspot_intensity * 100).toFixed(0)}%
+                  </span>
+                )}
+              </div>
+
+              {/* Cross-parameter context in modal */}
+              <CrossParamBadges context={selectedProblem.cross_parameter_context} />
             </div>
 
             {/* Solutions */}

@@ -149,10 +149,14 @@ def generate_municipal_dashboard(data_dict, metadata, hotspot_results=None, week
     Returns:
         dict with prioritized problems, solutions, and impact projections
     """
+    import config
+
     city = metadata.get("city", "Unknown")
     bounds = metadata.get("bounds", {})
     timestamps = metadata.get("timestamps", [])
     current_timestamp = timestamps[week_index] if timestamps and abs(week_index) <= len(timestamps) else "N/A"
+    total_area_km2 = (config.GRID_SIZE * config.GRID_RESOLUTION_KM) ** 2
+    total_cells = config.GRID_SIZE * config.GRID_SIZE
 
     problems = []
 
@@ -177,6 +181,9 @@ def generate_municipal_dashboard(data_dict, metadata, hotspot_results=None, week
             
             worst_temp = float(curr_temp[idx])
             worst_aqi = float(curr_aqi[idx])
+            overlap_cells = int(np.sum(intersection))
+            overlap_pct = round(overlap_cells / total_cells * 100, 1)
+            overlap_km2 = round(overlap_cells / total_cells * total_area_km2, 1)
             
             rows, cols = curr_temp.shape
             lat_min = bounds.get("lat_min", 0); lat_max = bounds.get("lat_max", 1)
@@ -184,9 +191,21 @@ def generate_municipal_dashboard(data_dict, metadata, hotspot_results=None, week
             
             lat = lat_min + (lat_max - lat_min) * idx[0] / max(1, rows - 1)
             lon = lon_min + (lon_max - lon_min) * idx[1] / max(1, cols - 1)
+
+            # WoW delta for multi-factor
+            mf_wow = None
+            if temp_data.ndim == 3 and abs(week_index) < temp_data.shape[0] and week_index != 0:
+                prev_temp_mean = float(np.nanmean(temp_data[week_index - 1]))
+                prev_aqi_mean = float(np.nanmean(aqi_data[week_index - 1]))
+                curr_temp_mean = float(np.nanmean(curr_temp))
+                curr_aqi_mean = float(np.nanmean(curr_aqi))
+                mf_wow = {
+                    "temp_delta": round(curr_temp_mean - prev_temp_mean, 2),
+                    "aqi_delta": round(curr_aqi_mean - prev_aqi_mean, 2),
+                }
             
             problems.append({
-                "priority_score": round(150.0 + combined_severity[idx] * 20, 2), # Mega priority boost
+                "priority_score": round(150.0 + combined_severity[idx] * 20, 2),
                 "parameter": "multi_factor",
                 "title": "Toxic Heatwave (Heat + Pollution)",
                 "icon": "☣️",
@@ -203,8 +222,15 @@ def generate_municipal_dashboard(data_dict, metadata, hotspot_results=None, week
                     "max": worst_aqi,
                     "min": 0,
                     "unit": "Overlay",
+                    "std_dev_temp": round(float(np.nanstd(curr_temp)), 2),
+                    "std_dev_aqi": round(float(np.nanstd(curr_aqi)), 1),
+                    "p95_temp": round(float(np.nanpercentile(curr_temp, 95)), 1),
+                    "p95_aqi": round(float(np.nanpercentile(curr_aqi, 95)), 0),
                 },
                 "hotspot_clusters": 2,
+                "spatial_coverage_pct": overlap_pct,
+                "affected_area_km2": overlap_km2,
+                "wow_delta": mf_wow,
                 "solutions": [
                     {
                         "action": "Declare immediate public health emergency in sector",
@@ -253,6 +279,8 @@ def generate_municipal_dashboard(data_dict, metadata, hotspot_results=None, week
         mean_val = float(np.nanmean(current))
         max_val = float(np.nanmax(current))
         min_val = float(np.nanmin(current))
+        std_val = float(np.nanstd(current))
+        p95_val = float(np.nanpercentile(current, 95))
 
         # Calculate severity score
         score = _calculate_severity_score(param_name, mean_val, max_val, min_val, severity_config)
@@ -273,8 +301,52 @@ def generate_municipal_dashboard(data_dict, metadata, hotspot_results=None, week
         # Build the problem entry
         unit = metadata.get("parameters", {}).get(param_name, {}).get("unit", "")
         hotspot_count = 0
+        hotspot_intensity = 0
         if hotspot_results and param_name in hotspot_results:
             hotspot_count = hotspot_results[param_name].get("num_clusters", 0)
+            clusters = hotspot_results[param_name].get("clusters", [])
+            if clusters:
+                hotspot_intensity = round(
+                    sum(c.get("severity", 0) for c in clusters) / len(clusters), 3
+                )
+
+        # WoW delta
+        wow_delta = None
+        wow_direction = "stable"
+        if param_data.ndim == 3 and abs(week_index) < param_data.shape[0] and week_index != 0:
+            prev_mean = float(np.nanmean(param_data[week_index - 1]))
+            wow_delta = round(mean_val - prev_mean, 3)
+            if param_name in ("temperature", "pollution"):
+                wow_direction = "worsening" if wow_delta > 0 else ("improving" if wow_delta < 0 else "stable")
+            else:
+                wow_direction = "worsening" if wow_delta < 0 else ("improving" if wow_delta > 0 else "stable")
+
+        # Spatial coverage — % of grid exceeding the threshold
+        threshold = severity_config["threshold_bad"]
+        if param_name in ("temperature", "pollution"):
+            exceed_count = int(np.sum(current >= threshold))
+        else:
+            exceed_count = int(np.sum(current <= threshold))
+        spatial_coverage_pct = round(exceed_count / total_cells * 100, 1)
+        affected_km2 = round(exceed_count / total_cells * total_area_km2, 1)
+
+        # Cross-parameter context: what are other params at the worst location?
+        cross_context = {}
+        worst_row = worst_loc.get("_row")
+        worst_col = worst_loc.get("_col")
+        if worst_row is not None and worst_col is not None:
+            for other_param, other_data in data_dict.items():
+                if other_param == param_name or other_data is None:
+                    continue
+                if other_data.ndim == 3:
+                    other_val = float(other_data[week_index, worst_row, worst_col])
+                else:
+                    other_val = float(other_data[worst_row, worst_col])
+                other_unit = metadata.get("parameters", {}).get(other_param, {}).get("unit", "")
+                cross_context[other_param] = {
+                    "value": round(other_val, 2),
+                    "unit": other_unit,
+                }
 
         problems.append({
             "priority_score": round(score, 2),
@@ -287,15 +359,23 @@ def generate_municipal_dashboard(data_dict, metadata, hotspot_results=None, week
                 "mean": round(mean_val, 2),
                 "max": round(max_val, 2),
                 "min": round(min_val, 2),
+                "std_dev": round(std_val, 3),
+                "p95": round(p95_val, 2),
                 "unit": unit,
             },
             "hotspot_clusters": hotspot_count,
+            "hotspot_intensity": hotspot_intensity,
+            "spatial_coverage_pct": spatial_coverage_pct,
+            "affected_area_km2": affected_km2,
+            "wow_delta": wow_delta,
+            "wow_direction": wow_direction,
+            "cross_parameter_context": cross_context,
             "solutions": template["solutions"],
             "impact_projection": {
                 "after_7_days": template["impact_7d"],
                 "after_10_days": template["impact_10d"],
             },
-            "status": "pending",  # Default status
+            "status": "pending",
             "assigned_to": None,
             "created_at": datetime.now().isoformat(),
             "target_completion": (datetime.now() + timedelta(days=10)).isoformat(),
@@ -321,6 +401,7 @@ def generate_municipal_dashboard(data_dict, metadata, hotspot_results=None, week
         "analysis_date": current_timestamp,
         "city_health_score": round(health_score, 1),
         "total_issues_detected": len(problems),
+        "total_area_km2": total_area_km2,
         "top_3_urgent": top_problems,
         "all_issues": problems,
         "summary": _generate_summary(top_problems, city),
@@ -380,6 +461,8 @@ def _find_worst_location(grid_2d, bounds, param_name):
         "lon": round(lon, 6),
         "value": round(float(grid_2d[idx]), 4),
         "area_description": _get_area_description(lat, lon, bounds),
+        "_row": int(idx[0]),
+        "_col": int(idx[1]),
     }
 
 
