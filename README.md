@@ -1,4 +1,4 @@
-# 🛰️ Satellite Environmental Intelligence Platform
+# 🛰️ SANTEL - Satellite Environmental Intelligence Platform
 
 > Transform raw satellite data into actionable environmental insights for smart city planning and sustainable urban development.
 
